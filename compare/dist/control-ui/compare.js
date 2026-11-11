@@ -267,6 +267,9 @@ function mountComparePage(container, context, { panel = false } = {}) {
       panel ? continueActions(chosen) : null);
   }
 
+  // A panel's session comes in its props (ControlUiViewContext.props: sessionKey, agentId).
+  const session = () => ({ sessionKey: ctx.props?.sessionKey ?? ctx.sessionKey, agentId: ctx.props?.agentId ?? ctx.agentId });
+
   // Panel only: send the chosen or merged answer to this chat as an ordinary message.
   function continueActions(chosen) {
     const options = [];
@@ -275,7 +278,7 @@ function mountComparePage(container, context, { panel = false } = {}) {
       options.push(["Continue with the most consistent answer", "Most consistent answer", chosen, a.text]);
     }
     if (trial?.merge) options.push(["Continue with the merged answer", "Merged answer", trial.merge.model, trial.merge.text]);
-    if (!options.length || !ctx.sessionKey) return null;
+    if (!options.length || !session().sessionKey) return null;
     return el("div", { class: "aiwb-compare__actions" }, options.map(([label, kind, model, text]) =>
       el("button", { type: "button", class: "btn primary", disabled: Boolean(busy) || !canWrite(), onclick: () => sendToChat(continueMessage(trial.question, kind, model, text)) }, label)));
   }
@@ -284,7 +287,8 @@ function mountComparePage(container, context, { panel = false } = {}) {
     busy = "sending";
     render();
     try {
-      await host.request("chat.send", { sessionKey: ctx.sessionKey, ...(ctx.agentId ? { agentId: ctx.agentId } : {}), message,
+      const { sessionKey, agentId } = session();
+      await host.request("chat.send", { sessionKey, ...(agentId ? { agentId } : {}), message,
         idempotencyKey: `aiwb-compare-${Date.now()}-${Math.random().toString(36).slice(2)}` });
       notice = "Sent to the chat.";
     } catch (failure) {
