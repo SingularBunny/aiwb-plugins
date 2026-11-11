@@ -40,9 +40,11 @@ export function knowledgeContext(knowledge, agentId) {
     "# Knowledge base",
     `Knowledge base folders: ${dirs.join(", ")}.`,
     "Look things up there before answering from general knowledge: memory search (memory_search) finds the Markdown notes, or read the files.",
-    "You may add to it: save new notes, summaries and conclusions there as Markdown files (.md), following the folder's existing",
-    "structure, names and links; edit an existing note rather than creating a duplicate. Keep memory facts (about the user and how to",
-    "work) in memory, not here.",
+    "You may add to it and keep it organised together with the user: save new notes, summaries and conclusions there as Markdown",
+    "files (.md), following the folder's existing structure, names and links; edit an existing note rather than creating a duplicate.",
+    "Before changing anything there, say in the chat which notes you will create, edit, move or delete and what changes, and wait",
+    "for the user's yes. Write there only with the file tools (write, edit), never with shell commands: each write shows the user",
+    "an approval card. Keep memory facts (about the user and how to work) in memory, not here.",
   ].join("\n");
 }
 

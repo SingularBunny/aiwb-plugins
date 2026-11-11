@@ -13,6 +13,9 @@ All notable changes to the ai-workbench plugins. The format follows
 - `aiwb-memory` 0.2.0: knowledge base folders (`knowledge` config, for every agent and per agent): each agent is told
   its folders, to look things up there and that it may save notes there as Markdown; the folders themselves are
   searched by OpenClaw's memory search. The shared memory folder (`dir`) is now optional.
+- `aiwb-memory`: every file write inside a knowledge folder (OpenClaw `write`, `edit`, `apply_patch` and the Claude
+  CLI's Write and Edit) waits for an approval card naming the file and the change; allow once, allow always (for
+  that chat until the Gateway restarts) or deny. Agents are told to announce changes in the chat before making them.
 
 ## [0.1.0] - 2026-11-11
 

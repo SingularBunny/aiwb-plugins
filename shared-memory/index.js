@@ -16,6 +16,7 @@ import path from "node:path";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 
 import { knowledgeContext, sharedMemoryContext } from "./context.js";
+import { knowledgeApproval } from "./knowledge-guard.js";
 
 export default definePluginEntry({
   id: "aiwb-memory",
@@ -35,5 +36,13 @@ export default definePluginEntry({
       const text = [shared ? sharedMemoryContext(dir) : null, knowledgeContext(knowledge, ctx?.agentId)].filter(Boolean).join("\n\n");
       return text ? { appendSystemContext: text } : undefined;
     });
+    if (!knowledge) return;
+    // Every file write inside the agent's knowledge folders waits for the user's approval in the chat; "allow always"
+    // stops asking for that chat until the Gateway restarts.
+    const allowedSessions = new Set();
+    api.on("before_tool_call", (event, ctx) => knowledgeApproval({
+      toolName: event.toolName, params: event.params, derivedPaths: event.derivedPaths, agentId: ctx?.agentId,
+      base: ctx?.cwd ?? ctx?.workspaceDir, knowledge, allowedSessions, sessionKey: ctx?.sessionKey,
+    }), { matcher: ["write", "edit", "apply_patch"] });
   },
 });

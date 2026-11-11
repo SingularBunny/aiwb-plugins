@@ -21,10 +21,48 @@ test("knowledge base: an agent gets the folders for everyone plus its own, and m
   const knowledge = { "*": ["/k/vault"], garden: ["/k/garden", "/k/vault"] };
   const garden = knowledgeContext(knowledge, "garden");
   assert.ok(garden.includes("Knowledge base folders: /k/vault, /k/garden."));
-  assert.ok(garden.includes("memory_search") && garden.includes("save new notes"));
+  assert.ok(garden.includes("memory_search") && garden.includes("save new notes") && garden.includes("wait") && garden.includes("never with shell commands"));
   assert.ok(knowledgeContext(knowledge, "orchard").includes("folders: /k/vault."));
   assert.equal(knowledgeContext({ garden: ["/k/garden"] }, "orchard"), null);
   assert.equal(knowledgeContext(undefined, "garden"), null);
+});
+
+test("knowledge base: a write inside the folders asks first, with once, always and deny; outside it does not", async () => {
+  const { mkdtempSync, writeFileSync, mkdirSync } = await import("node:fs");
+  const os = await import("node:os");
+  const { knowledgeApproval } = await import("../shared-memory/knowledge-guard.js");
+  const vault = mkdtempSync(path.join(os.tmpdir(), "vault-"));
+  mkdirSync(path.join(vault, "garden"));
+  writeFileSync(path.join(vault, "garden", "pruning.md"), "old");
+  const knowledge = { "*": [vault] };
+  const allowedSessions = new Set();
+  const ask = (toolName, params, extra = {}) =>
+    knowledgeApproval({ toolName, params, agentId: "garden", knowledge, allowedSessions, sessionKey: "s1", ...extra });
+
+  const create = ask("write", { path: path.join(vault, "garden", "quince.md"), content: "Quince notes" });
+  assert.equal(create.requireApproval.title, "Knowledge base: create quince.md");
+  assert.ok(create.requireApproval.description.includes("Quince notes"));
+  assert.deepEqual(create.requireApproval.allowedDecisions, ["allow-once", "allow-always", "deny"]);
+  assert.equal(ask("write", { file_path: path.join(vault, "garden", "pruning.md"), content: "new" }).requireApproval.title,
+    "Knowledge base: replace pruning.md");
+  const edit = ask("edit", { path: "garden/pruning.md", old_string: "old", new_string: "new" }, { base: vault });
+  assert.match(edit.requireApproval.description, /- old\n\+ new/);
+  const patch = ask("apply_patch", { input: `*** Begin Patch\n*** Add File: ${vault}/a.md\n+x\n*** Delete File: ${vault}/b.md\n*** End Patch` });
+  assert.equal(patch.requireApproval.title, "Knowledge base: change 2 notes");
+
+  // Outside the folders, a path that only starts like the vault, and other agents' folders: no approval.
+  assert.equal(ask("write", { path: "/tmp/elsewhere.md", content: "x" }), undefined);
+  assert.equal(ask("write", { path: `${vault}-other/x.md`, content: "x" }), undefined);
+  assert.equal(ask("write", { path: path.join(vault, "..", "x.md"), content: "x" }), undefined);
+  assert.equal(knowledgeApproval({ toolName: "write", params: { path: "/k/orchard/x.md" }, agentId: "garden",
+    knowledge: { orchard: ["/k/orchard"] }, allowedSessions, sessionKey: "s1" }), undefined);
+
+  // Allow always: no more cards in that chat; other chats still ask.
+  create.requireApproval.onResolution("allow-once");
+  assert.ok(ask("write", { path: path.join(vault, "x.md"), content: "x" }));
+  create.requireApproval.onResolution("allow-always");
+  assert.equal(ask("write", { path: path.join(vault, "x.md"), content: "x" }), undefined);
+  assert.ok(ask("write", { path: path.join(vault, "x.md"), content: "x" }, { sessionKey: "s2" }));
 });
 
 test("fork settings: effective value, its source, and invalid falls back to default", async () => {
