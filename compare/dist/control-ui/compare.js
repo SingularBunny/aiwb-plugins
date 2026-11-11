@@ -73,7 +73,7 @@ function mountComparePage(container, context) {
 
   const modelLabel = (ref) => {
     const m = ranking?.ranked.find((r) => r.ref === ref);
-    return m ? `${m.name}${m.free ? " · free" : ""}${m.rating ? ` · Arena ${m.rating}` : ""}` : ref;
+    return m ? `${m.name}${m.free && !/free/i.test(m.name) ? " · free" : ""}${m.rating ? ` · Arena ${m.rating}` : ""}` : ref;
   };
   const runtimeOf = (ref) => ranking?.ranked.find((r) => r.ref === ref)?.runtime ?? null;
 
@@ -259,9 +259,9 @@ function mountComparePage(container, context) {
         el("div", {}, el("h1", {}, "Multi-model"),
           hint("Several models answer the same question; a judge of another family picks the most consistent answer, or one model merges them.")),
         el("button", { type: "button", class: "btn", disabled: Boolean(busy), onclick: () => refresh() }, busy === "loading" ? "Loading…" : "Refresh")),
-      error ? message("danger", error) : null,
-      notice ? message("ok", notice) : null,
-      rolesSection(), trySection(), candidatesSection());
+      // replaceChildren turns null into the text "null": only real nodes go in.
+      ...[error ? message("danger", error) : null, notice ? message("ok", notice) : null,
+        rolesSection(), trySection(), candidatesSection()].filter(Boolean));
   }
 
   const unsubscribe = host.subscribe?.(() => { if (!disposed && host.connection?.connected && !ranking) void refresh(); });
