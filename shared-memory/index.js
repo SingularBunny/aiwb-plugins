@@ -33,7 +33,7 @@ export default definePluginEntry({
     }
     // Files are read on every turn: shared memory edits take effect immediately, without reloading the plugin.
     api.on("before_prompt_build", (_event, ctx) => {
-      const text = [shared ? sharedMemoryContext(dir) : null, knowledgeContext(knowledge, ctx?.agentId)].filter(Boolean).join("\n\n");
+      const text = [shared ? sharedMemoryContext(dir) : null, knowledgeContext(knowledge, ctx?.agentId, api.pluginConfig?.knowledgeText)].filter(Boolean).join("\n\n");
       return text ? { appendSystemContext: text } : undefined;
     });
     if (!knowledge) return;

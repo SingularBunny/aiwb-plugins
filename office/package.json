@@ -1,6 +1,6 @@
 {
   "name": "aiwb-office",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Office document preview in OpenClaw chat: local LibreOffice conversion to PDF",

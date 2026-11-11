@@ -33,9 +33,11 @@ export function sharedMemoryContext(dir) {
  * Knowledge base folders of this agent: the folders for every agent ("*") and its own (config key = agent id).
  * Returns the system prompt section, or null when the agent has none.
  */
-export function knowledgeContext(knowledge, agentId) {
-  const dirs = [...new Set([...(knowledge?.["*"] ?? []), ...((agentId && knowledge?.[agentId]) || [])])];
+export function knowledgeContext(knowledge, agentId, knowledgeText) {
+  const pick = (scopes) => [...new Set([...(scopes?.["*"] ?? []), ...((agentId && scopes?.[agentId]) || [])])];
+  const dirs = pick(knowledge);
   if (!dirs.length) return null;
+  const copies = pick(knowledgeText);
   return [
     "# Knowledge base",
     `Knowledge base folders: ${dirs.join(", ")}.`,
@@ -45,6 +47,8 @@ export function knowledgeContext(knowledge, agentId) {
     "Before changing anything there, say in the chat which notes you will create, edit, move or delete and what changes, and wait",
     "for the user's yes. Write there only with the file tools (write, edit), never with shell commands: each write shows the user",
     "an approval card. Keep memory facts (about the user and how to work) in memory, not here.",
+    ...(copies.length ? [`PDF and Office files there are found by memory search through Markdown text copies in ${copies.join(", ")}:`,
+      "each copy names its original file at the top. Read and cite the original; never edit the copies, they are rebuilt from the originals."] : []),
   ].join("\n");
 }
 

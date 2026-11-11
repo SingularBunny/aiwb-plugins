@@ -16,6 +16,9 @@ All notable changes to the ai-workbench plugins. The format follows
 - `aiwb-memory`: every file write inside a knowledge folder (OpenClaw `write`, `edit`, `apply_patch` and the Claude
   CLI's Write and Edit) waits for an approval card naming the file and the change; allow once, allow always (for
   that chat until the Gateway restarts) or deny. Agents are told to announce changes in the chat before making them.
+- `aiwb-office` 0.2.0: `bin/knowledge-text.mjs` keeps Markdown text copies of the PDF (pdftotext) and Office
+  (LibreOffice) files in knowledge folders, re-reading only changed files and removing copies of deleted ones;
+  `aiwb-memory` tells agents where the copies are and to read the originals.
 
 ## [0.1.0] - 2026-11-11
 

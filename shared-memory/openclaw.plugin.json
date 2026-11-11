@@ -25,6 +25,16 @@
             "type": "string"
           }
         }
+      },
+      "knowledgeText": {
+        "type": "object",
+        "description": "Folders of Markdown text copies of the knowledge base PDF and Office files, by agent id (\"*\" for every agent)",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

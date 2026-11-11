@@ -25,6 +25,9 @@ test("knowledge base: an agent gets the folders for everyone plus its own, and m
   assert.ok(knowledgeContext(knowledge, "orchard").includes("folders: /k/vault."));
   assert.equal(knowledgeContext({ garden: ["/k/garden"] }, "orchard"), null);
   assert.equal(knowledgeContext(undefined, "garden"), null);
+  const withCopies = knowledgeContext(knowledge, "garden", { "*": ["/t/all"], garden: ["/t/agent-garden"] });
+  assert.ok(withCopies.includes("text copies in /t/all, /t/agent-garden") && withCopies.includes("never edit the copies"));
+  assert.ok(!garden.includes("text copies"));
 });
 
 test("knowledge base: a write inside the folders asks first, with once, always and deny; outside it does not", async () => {
@@ -63,6 +66,48 @@ test("knowledge base: a write inside the folders asks first, with once, always a
   create.requireApproval.onResolution("allow-always");
   assert.equal(ask("write", { path: path.join(vault, "x.md"), content: "x" }), undefined);
   assert.ok(ask("write", { path: path.join(vault, "x.md"), content: "x" }, { sessionKey: "s2" }));
+});
+
+test("knowledge text: PDF and Office files get Markdown copies, unchanged ones are kept, gone ones removed", async () => {
+  const { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync, rmSync, utimesSync } = await import("node:fs");
+  const os = await import("node:os");
+  const { syncKnowledgeText, mirrorDir, listSources } = await import("../office/knowledge-text.js");
+  const base = mkdtempSync(path.join(os.tmpdir(), "kt-"));
+  const vault = path.join(base, "Vault"), root = path.join(base, "text");
+  for (const d of ["garden", ".obsidian", ".trash"]) mkdirSync(path.join(vault, d), { recursive: true });
+  for (const [f, body] of [["a.pdf", "A"], ["garden/b.docx", "B"], ["garden/c.xlsx", "C"], ["note.md", "N"], ["img.png", "I"],
+    [".obsidian/x.pdf", "X"], [".trash/y.pdf", "Y"], ["garden/~$b.docx", "lock"]]) writeFileSync(path.join(vault, f), body);
+  assert.deepEqual(listSources(vault), ["a.pdf", "garden/b.docx", "garden/c.xlsx"]);
+  const calls = [];
+  const extract = async (file, ext) => {
+    calls.push(path.basename(file));
+    if (ext === ".xlsx") throw new Error("broken workbook");
+    return `text of ${readFileSync(file, "utf8")}`;
+  };
+  const first = await syncKnowledgeText({ scopes: [{ root, sources: [vault] }], extract });
+  assert.deepEqual([first.updated, first.unchanged, first.removed, first.failed.length], [2, 0, 0, 1]);
+  const dest = mirrorDir(root, vault);
+  const copy = readFileSync(path.join(dest, "garden", "b.docx.md"), "utf8");
+  assert.ok(copy.startsWith("# b.docx") && copy.includes(path.join(vault, "garden", "b.docx")) && copy.includes("text of B"));
+  assert.ok(!existsSync(path.join(dest, ".obsidian")) && !existsSync(path.join(dest, "garden", "c.xlsx.md")));
+
+  // Second run: nothing changed, only the failed one is tried again.
+  calls.length = 0;
+  const second = await syncKnowledgeText({ scopes: [{ root, sources: [vault] }], extract });
+  assert.deepEqual([second.updated, second.unchanged], [0, 2]);
+  assert.deepEqual(calls, ["c.xlsx"]);
+  // A changed file is copied again; a deleted one loses its copy; a folder dropped from the scope loses its mirror.
+  writeFileSync(path.join(vault, "a.pdf"), "A2");
+  utimesSync(path.join(vault, "a.pdf"), new Date(), new Date(Date.now() + 5000));
+  rmSync(path.join(vault, "garden", "b.docx"));
+  const third = await syncKnowledgeText({ scopes: [{ root, sources: [vault] }], extract });
+  assert.equal(readFileSync(path.join(dest, "a.pdf.md"), "utf8").includes("text of A2"), true);
+  assert.equal(existsSync(path.join(dest, "garden", "b.docx.md")), false);
+  assert.equal(third.removed, 1);
+  await syncKnowledgeText({ scopes: [{ root, sources: [] }], extract });
+  assert.equal(existsSync(dest), false);
+  // Two folders with the same name get different mirrors.
+  assert.notEqual(mirrorDir(root, "/a/Vault"), mirrorDir(root, "/b/Vault"));
 });
 
 test("fork settings: effective value, its source, and invalid falls back to default", async () => {
