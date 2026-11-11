@@ -186,6 +186,8 @@ function mountComparePage(container, context) {
       busy = "";
       render();
     }
+    // Models that just failed are marked in the ranking now: re-rank so the suggested roles skip them.
+    if (trial.answers.some((a) => a.replaced || !a.ok)) void refresh();
   }
 
   const okAnswers = () => (trial?.answers || []).filter((a) => a.ok);
