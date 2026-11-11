@@ -1,0 +1,25 @@
+{
+  "id": "aiwb-groups",
+  "name": "Groups",
+  "description": "Several agents in one conversation, as in LobeHub's group chat: a manager agent picks who speaks next, an @mention of an agent wins, and at most a set number of agent turns follow one user message. Each agent answers with a full turn of its own in its own session for the group. A Groups page in the Control UI.",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "uiCapabilities": [
+    "page"
+  ],
+  "controlUi": {
+    "entry": "dist/control-ui/groups.js",
+    "styles": [
+      "dist/control-ui/groups.css"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

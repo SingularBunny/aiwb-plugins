@@ -1,0 +1,12 @@
+{
+  "name": "aiwb-groups",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Several agents in one conversation; a manager picks who speaks next",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

@@ -10,6 +10,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-groups` 0.1.0: Groups — several agents in one conversation, a manager agent picks who speaks next, @mentions
+  first, a turn limit per message; each agent answers with a full turn in its own session for the group.
 - `aiwb-compare` 0.1.0: Multi-model — ask several models at once, pick the most consistent answer (Universal
   Self-Consistency, judged twice in two orders) or merge them; a Control UI page for the roles, ranked by Arena.
 - `aiwb-memory` 0.2.0: knowledge base folders (`knowledge` config, for every agent and per agent): each agent is told
