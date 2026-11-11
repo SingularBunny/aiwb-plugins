@@ -37,7 +37,7 @@ function failure(respond, error) {
 // detach(run): keeps a round admitted after the send request has answered. The Gateway refuses agent work that is
 // not part of an admitted request ("Gateway is temporarily unavailable"); index.js passes the SDK's
 // runDetachedWebhookWork, which reserves its own admission when called while the request is still admitted.
-export function registerGroups(api, { stateDir, now = () => Date.now(), detach = (run) => run() } = {}) {
+export function registerGroups(api, { stateDir, now = () => Date.now(), detach = (run) => run(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   const dir = path.join(stateDir, "workbench", "groups");
   const file = (id) => path.join(dir, `${id}.json`);
   const load = (id) => {
@@ -64,18 +64,40 @@ export function registerGroups(api, { stateDir, now = () => Date.now(), detach =
     const sessionKey = `agent:${agentId}:aiwb-group-${group.id}`;
     const since = group.cursors?.[agentId] ?? 0;
     const message = turnMessage({ transcript: group.transcript, members, agentId, since });
+    // The reply is the new assistant message in the agent's group session. waitForRun only shortens the wait: an
+    // observation started from background work can be cancelled ("agent.wait observation cancelled") while the run
+    // itself goes on and answers, so the session is what counts.
+    const assistants = async () => {
+      const { messages } = await api.runtime.subagent.getSessionMessages({ sessionKey, limit: 50 });
+      return (messages || []).filter((m) => m?.role === "assistant");
+    };
+    const before = (await assistants()).length;
     const { runId } = await api.runtime.subagent.run({ sessionKey, message, deliver: false });
     const deadline = now() + TURN_TIMEOUT_MS;
-    let result;
-    do {
-      result = await api.runtime.subagent.waitForRun({ runId, timeoutMs: 30_000 });
+    let observing = true;
+    while (now() < deadline) {
       if (running.get(group.id)?.signal.aborted) throw new Error("stopped");
-    } while (result?.status === "pending" && now() < deadline);
-    if (result?.status !== "ok") throw new Error(`the agent's turn ended: ${result?.status ?? "unknown"}${result?.error ? ` (${result.error})` : ""}`);
-    const { messages } = await api.runtime.subagent.getSessionMessages({ sessionKey, limit: 6 });
-    const text = lastAssistantText(messages);
-    if (!text) throw new Error("the agent gave no text reply");
-    return text;
+      let status = null;
+      if (observing) {
+        try {
+          const result = await api.runtime.subagent.waitForRun({ runId, timeoutMs: 30_000 });
+          status = result?.status ?? null;
+          if (status === "error" || status === "timeout") throw new Error(`the agent's turn ended: ${status}${result?.error ? ` (${result.error})` : ""}`);
+        } catch (error) {
+          if (/turn ended/.test(String(error?.message))) throw error;
+          observing = false;                                   // fall back to watching the session
+        }
+      } else {
+        await sleep(3000);
+      }
+      const now_ = await assistants();
+      if (now_.length > before) {
+        const text = lastAssistantText(now_.slice(before));
+        if (text) return text;
+      }
+      if (status === "ok") throw new Error("the agent gave no text reply");
+    }
+    throw new Error("the agent did not answer in 15 minutes");
   }
 
   async function round(group, userText) {
