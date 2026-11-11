@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+import { runDetachedWebhookWork } from "openclaw/plugin-sdk/webhook-request-guards";
 
 import { PLUGIN_ID, registerGroups } from "./register.js";
 
@@ -14,6 +15,8 @@ export default definePluginEntry({
   name: "Groups",
   description: "Several agents in one conversation; a manager picks who speaks next",
   register(api) {
-    registerGroups(api, { stateDir: process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw") });
+    registerGroups(api, { stateDir: process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw"),
+      // A round outlives the send request: keep it admitted (see register.js).
+      detach: runDetachedWebhookWork });
   },
 });

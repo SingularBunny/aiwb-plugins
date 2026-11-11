@@ -34,7 +34,10 @@ function failure(respond, error) {
     message: String(error?.message || error).slice(0, 500) });
 }
 
-export function registerGroups(api, { stateDir, now = () => Date.now() } = {}) {
+// detach(run): keeps a round admitted after the send request has answered. The Gateway refuses agent work that is
+// not part of an admitted request ("Gateway is temporarily unavailable"); index.js passes the SDK's
+// runDetachedWebhookWork, which reserves its own admission when called while the request is still admitted.
+export function registerGroups(api, { stateDir, now = () => Date.now(), detach = (run) => run() } = {}) {
   const dir = path.join(stateDir, "workbench", "groups");
   const file = (id) => path.join(dir, `${id}.json`);
   const load = (id) => {
@@ -163,7 +166,7 @@ export function registerGroups(api, { stateDir, now = () => Date.now() } = {}) {
       group.transcript.push({ role: "user", text, at: now() });
       group.updatedAt = now();
       store(group);
-      void round(group, text);
+      void detach(() => round(group, text)).catch(() => {});
       respond(true, { group: view(group) }, undefined);
     } catch (error) { failure(respond, error); }
   }, { scope: "operator.write" });
