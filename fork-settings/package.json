@@ -1,0 +1,12 @@
+{
+  "name": "aiwb-fork-settings",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Which OpenClaw fork settings are in effect in the Gateway, and setting them",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

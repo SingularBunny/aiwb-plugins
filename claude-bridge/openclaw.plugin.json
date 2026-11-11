@@ -1,0 +1,76 @@
+{
+  "id": "aiwb-claude-bridge",
+  "name": "Claude Desktop & Code bridge",
+  "description": "Brings Claude Desktop and Claude Code into OpenClaw: the chat tree by project folder, continuing old chats in agents, live run status, drag-and-drop order, and live import of Claude Code memory",
+  "categories": [
+    "developer-tools"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projects": {
+        "type": "object",
+        "description": "Project folder (folder name in the tree) → agent id",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "defaultAgent": {
+        "type": "string",
+        "description": "Agent for folders without a project (default: main)"
+      },
+      "defaultFolder": {
+        "type": "string",
+        "description": "Folder for new sessions of the default agent (default: _no_space)"
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Folder order in the \"Projects\" section, top to bottom; unlisted folders follow alphabetically"
+      },
+      "adoption": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Adoption of old chats by the agent of their folder, in the Gateway (needs the OpenClaw fork grant OPENCLAW_PLUGIN_GATEWAY_METHODS; without it claude-code-catalog.mjs adopts)",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Adopt in the Gateway at start, every 10 minutes and when the tree changes (default: true; false leaves adoption to claude-code-catalog.mjs)"
+          }
+        }
+      },
+      "memorySync": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One-way copy of Claude Code memory (~/.claude/projects/<folder>/memory) into the memory of the agent of its project folder",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Run the live sync in the Gateway (default: false; check `node claude-bridge/memory-sync.js --dry-run` first)"
+          },
+          "root": {
+            "type": "string",
+            "description": "Projects tree root: Claude Code chats under <root>/<Folder> belong to that folder (no default: set by the ai-workbench installer from WORKBENCH_CLAUDE_DESKTOP_ROOT; without it the live sync stays off)"
+          },
+          "claudeProjectsDir": {
+            "type": "string",
+            "description": "Claude Code projects folder (default: ~/.claude/projects)"
+          },
+          "secretsFiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Local .env files whose secret values (*PASS*, *TOKEN*, *SECRET*, *KEY*) are replaced with ‹secret› before memory is copied; patterns are applied in any case. Default: ~/.openclaw/.env"
+          }
+        }
+      }
+    }
+  }
+}

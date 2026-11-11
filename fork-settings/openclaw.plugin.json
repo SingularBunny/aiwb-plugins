@@ -1,0 +1,25 @@
+{
+  "id": "aiwb-fork-settings",
+  "name": "Fork settings",
+  "description": "Shows which OpenClaw fork limits and switches are in effect in the Gateway (value, default, where it comes from) and sets them in env.vars; a Proxy page in the Control UI for the managed proxy, proxy routes and a reachability check, and a Chat files page for the folders whose files the chat serves",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "uiCapabilities": [
+    "page"
+  ],
+  "controlUi": {
+    "entry": "dist/control-ui/proxy.js",
+    "styles": [
+      "dist/control-ui/proxy.css"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

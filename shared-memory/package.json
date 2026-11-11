@@ -1,0 +1,10 @@
+{
+  "name": "aiwb-memory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared memory for all OpenClaw agents, as in Claude Desktop",
+  "openclaw": {
+    "extensions": ["./index.js"]
+  }
+}

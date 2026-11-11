@@ -1,0 +1,30 @@
+{
+  "id": "aiwb-office",
+  "name": "Document preview",
+  "description": "Word, Excel and PowerPoint (and OpenDocument) documents open in chat as PDF and reach the model as text: converted by local LibreOffice, files never leave the machine",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "documentExtractors": [
+      "aiwb-office"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "soffice": {
+        "type": "string",
+        "description": "Path to soffice (LibreOffice); defaults to PATH lookup"
+      },
+      "cacheMb": {
+        "type": "number",
+        "description": "PDF and text cache limit, MB; default 512"
+      }
+    }
+  }
+}
