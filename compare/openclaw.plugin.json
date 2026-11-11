@@ -1,0 +1,142 @@
+{
+  "id": "aiwb-compare",
+  "name": "Multi-model",
+  "description": "Ask several models at once and see the answers side by side; pick the most consistent answer (Universal Self-Consistency, judged twice in two orders) or merge them. A Multi-model page in the Control UI sets the roles: answering models (by default the top free models of different families by Arena rating), judge, merger, default model.",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "uiCapabilities": [
+    "page"
+  ],
+  "controlUi": {
+    "entry": "dist/control-ui/compare.js",
+    "styles": [
+      "dist/control-ui/compare.css"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "answerers": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "enum": [
+              "auto",
+              "manual"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 6
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "runtime": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "judge": {
+        "description": "\"auto\" or a model as provider/id, with the runtime its catalog row names",
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "runtime": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "merger": {
+        "description": "\"auto\" or a model as provider/id, with the runtime its catalog row names",
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "runtime": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "defaultModel": {
+        "description": "\"auto\" or a model as provider/id, with the runtime its catalog row names",
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "runtime": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "freeProviders": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Providers whose every model counts as free (a local Ollama, say)"
+      },
+      "maxTokens": {
+        "type": "integer",
+        "minimum": 256,
+        "maximum": 32000
+      }
+    }
+  }
+}

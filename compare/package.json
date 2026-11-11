@@ -1,0 +1,12 @@
+{
+  "name": "aiwb-compare",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ask several models at once, pick the most consistent answer or merge them",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

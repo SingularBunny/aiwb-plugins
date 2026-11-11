@@ -15,6 +15,7 @@ each plugin with `openclaw plugins install --link`.
 | `shared-memory/` | `aiwb-memory` | shared memory for all agents, as in Claude Desktop, and each agent's knowledge base folders |
 | `fork-settings/` | `aiwb-fork-settings` | fork settings: which OpenClaw fork settings are in effect in the Gateway, and setting them; a Proxy page in the Control UI (routes editor, reachability check) and a Chat files page (folders whose files the chat serves, for all agents and per agent) ([README](fork-settings/README.md)) |
 | `office/` | `aiwb-office` | Office documents in chat: local LibreOffice → PDF preview, and their text for the model (document extractor); text copies of knowledge base PDF and Office files for memory search |
+| `compare/` | `aiwb-compare` | Multi-model: several models answer, a judge picks the most consistent answer or one merges them; a Control UI page for the roles |
 | `mcp/scheduled-tasks/` | MCP `scheduled-tasks` | scheduled tasks with Claude Desktop tools on top of `openclaw automations` |
 
 Documentation lives in ai-workbench, `docs/` (features: judge, projects, shared memory, document preview,
