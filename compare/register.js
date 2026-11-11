@@ -102,10 +102,10 @@ export function registerCompare(api, { stateDir, fetchJson = retryingFetchJson()
   // reasoning does so every time, so it rests a day.
   const FAILURE_MS = 30 * 60_000;
   const REASONING_ONLY_MS = 24 * 3600_000;
-  const recentFailure = (ref) => {
-    const f = failures.get(ref);
-    return f && now() - f.at < (f.code === "REASONING_ONLY" ? REASONING_ONLY_MS : FAILURE_MS) ? f : null;
-  };
+  const fresh = (f) => f && now() - f.at < (f.code === "REASONING_ONLY" ? REASONING_ONLY_MS : FAILURE_MS) ? f : null;
+  // A provider fails as a whole when two of its models fail in one ask (no credit, a bad key): then all its models rest.
+  const providerOf = (ref) => ref.split("/")[0];
+  const recentFailure = (ref) => fresh(failures.get(ref)) || fresh(failures.get(`provider:${providerOf(ref)}`));
 
   api.registerGatewayMethod(METHODS.state, async ({ respond }) => {
     try {
@@ -154,12 +154,14 @@ export function registerCompare(api, { stateDir, fetchJson = retryingFetchJson()
       const question = text(params?.question, MAX_QUESTION, "question");
       if (!Array.isArray(params?.models) || params.models.length < 1 || params.models.length > 6) throw new InputError("models: 1 to 6 models");
       const models = params.models.map((m, i) => ({ ...model(m, `models[${i}]`), family: typeof m.family === "string" ? m.family : null }));
-      const fallbacks = (Array.isArray(params.fallbacks) ? params.fallbacks.slice(0, 12) : [])
+      const fallbacks = (Array.isArray(params.fallbacks) ? params.fallbacks.slice(0, 40) : [])
         .map((m, i) => ({ ...model(m, `fallbacks[${i}]`), family: typeof m.family === "string" ? m.family : null }));
       const taken = new Set(models.map((m) => m.family).filter(Boolean));
       const used = new Set(models.map((m) => m.ref));
+      const failedHere = new Map();                       // provider → models of it that failed in this ask
+      const providerDown = (ref) => (failedHere.get(providerOf(ref))?.size ?? 0) >= 2;
       const nextFallback = () => {
-        const f = fallbacks.find((c) => !used.has(c.ref) && !recentFailure(c.ref) && !(c.family && taken.has(c.family)));
+        const f = fallbacks.find((c) => !used.has(c.ref) && !recentFailure(c.ref) && !providerDown(c.ref) && !(c.family && taken.has(c.family)));
         if (f) { used.add(f.ref); if (f.family) taken.add(f.family); }
         return f;
       };
@@ -169,6 +171,15 @@ export function registerCompare(api, { stateDir, fetchJson = retryingFetchJson()
         } catch (error) {
           const message = String(error?.message || error).slice(0, 300);
           failures.set(m.ref, { at: now(), error: message, code: error?.code ?? null });
+          const provider = providerOf(m.ref);
+          // OpenRouter routes to many independent providers: its models fail one by one (a rate limit here, a region
+          // block there), so two failures say nothing about the rest of it.
+          if (error?.code !== "REASONING_ONLY" && provider !== "openrouter") {
+            const set = failedHere.get(provider) ?? new Set();
+            set.add(m.ref);
+            failedHere.set(provider, set);
+            if (set.size >= 2) failures.set(`provider:${provider}`, { at: now(), error: `${set.size} of its models failed: ${message}`, code: "PROVIDER" });
+          }
           return { ref: m.ref, ok: false, error: message, code: error?.code ?? null };
         }
       };

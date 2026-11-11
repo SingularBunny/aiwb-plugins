@@ -176,8 +176,11 @@ function mountComparePage(container, context) {
     try {
       // The rest of the free ranking replaces a model that fails (region-blocked, rate-limited), one per family.
       const familyOf = (ref) => ranking.ranked.find((m) => m.ref === ref)?.family ?? null;
+      // Best first, up to three per family (a family may span providers), so the list reaches many families.
+      const perFamily = new Map();
       const fallbacks = ranking.ranked.filter((m) => m.free && !m.failed && !roles.answerers.some((a) => a.ref === m.ref))
-        .map((m) => ({ ref: m.ref, runtime: m.runtime, family: m.family }));
+        .filter((m) => { const n = perFamily.get(m.family) ?? 0; perFamily.set(m.family, n + 1); return n < 3; })
+        .slice(0, 40).map((m) => ({ ref: m.ref, runtime: m.runtime, family: m.family }));
       const r = await host.request(M.ask, { question, models: roles.answerers.map((m) => ({ ...m, family: familyOf(m.ref) })), fallbacks });
       trial.answers = r.answers;
     } catch (failure) {

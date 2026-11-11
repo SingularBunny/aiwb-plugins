@@ -146,6 +146,7 @@ test("compare plugin: scopes, parallel asking with one failure, CLI models throu
       llm: { complete: async (p) => {
         calls.push(["llm", p.model, p.execution?.mode ?? "direct"]);
         if (p.model === "openrouter/bad/model:free") throw Object.assign(new Error("rate limited"), { code: "LLM_COMPLETION_FAILED" });
+        if (p.model.startsWith("paid/")) return { text: "", stopReason: "error", model: p.model };
         if (p.model === "openrouter/empty/model:free") return { text: "", stopReason: "error", model: p.model };
         if (p.model === "openrouter/thinker/model:free") return { text: "", stopReason: "stop", model: p.model };
         if (p.purpose.endsWith(".select")) return { text: "The most consistent response is Response 1", model: p.model };
@@ -173,6 +174,13 @@ test("compare plugin: scopes, parallel asking with one failure, CLI models throu
   const ranked = await call(METHODS.rank, { models: [{ provider: "openrouter", id: "bad/model:free", available: true }, { provider: "openrouter", id: "c/three:free", available: true }] });
   assert.ok(ranked.payload.ranked.find((m) => m.ref === "openrouter/bad/model:free").failed);
   assert.deepEqual(ranked.payload.suggested.answerers.map((m) => m.ref), ["openrouter/c/three:free"]);
+  // Two models of one provider failing in one ask: its other models are skipped, and it rests as a whole.
+  const down = await call(METHODS.ask, { question: "Q", models: [{ ref: "paid/x1", family: "x" }, { ref: "paid/y1", family: "y" }],
+    fallbacks: [{ ref: "paid/z1", family: "z" }, { ref: "openrouter/w/ok:free", family: "w" }] });
+  assert.deepEqual(down.payload.answers.map((a) => [a.ref, a.ok]).sort(), [["openrouter/w/ok:free", true], ["paid/y1", false]].sort());
+  assert.ok(!calls.some((c) => c[1] === "paid/z1"), "a provider that failed twice is not tried again");
+  const reranked = await call(METHODS.rank, { models: [{ provider: "paid", id: "z1", available: true }] });
+  assert.ok(reranked.payload.ranked[0].failed);
   const thinker = await call(METHODS.ask, { question: "Q", models: [{ ref: "openrouter/thinker/model:free" }] });
   assert.match(thinker.payload.answers[0].error, /only reasoning/);
 
