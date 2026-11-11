@@ -4,7 +4,10 @@
 // into the context, along with where to add to this memory. The facts themselves (memory/*.md) are found
 // by memory search: the folder is listed in memory.search.extraPaths.
 //
-// Config: plugins.entries.aiwb-memory.config = { dir: "<shared memory folder>" }; requires
+// It also names each agent's knowledge base folders (notes it searches and may write to), for all agents and per agent.
+//
+// Config: plugins.entries.aiwb-memory.config = { dir: "<shared memory folder>", knowledge: { "*": [folders],
+// "<agent id>": [folders] } }, either key optional; requires
 // plugins.entries.aiwb-memory.hooks.allowPromptInjection = true.
 // The folder is not an agent workspace: OpenClaw stops putting an agent's root MEMORY.md and USER.md
 // into the context if anyone other than the agent edited them (OpenClaw docs concepts/memory-provenance.md).
@@ -12,7 +15,7 @@ import path from "node:path";
 
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 
-import { sharedMemoryContext } from "./context.js";
+import { knowledgeContext, sharedMemoryContext } from "./context.js";
 
 export default definePluginEntry({
   id: "aiwb-memory",
@@ -20,11 +23,17 @@ export default definePluginEntry({
   description: "Shared memory for all agents, as in Claude Desktop",
   register(api) {
     const dir = api.pluginConfig?.dir;
-    if (!dir || !path.isAbsolute(dir)) {
-      api.logger?.warn?.("aiwb-memory: dir (absolute path) is not set; shared memory is not enabled");
+    const knowledge = api.pluginConfig?.knowledge;
+    const shared = Boolean(dir && path.isAbsolute(dir));
+    if (dir && !shared) api.logger?.warn?.("aiwb-memory: dir is not an absolute path; shared memory is not enabled");
+    if (!shared && !knowledge) {
+      api.logger?.warn?.("aiwb-memory: neither dir nor knowledge is set; nothing to add");
       return;
     }
     // Files are read on every turn: shared memory edits take effect immediately, without reloading the plugin.
-    api.on("before_prompt_build", () => ({ appendSystemContext: sharedMemoryContext(dir) }));
+    api.on("before_prompt_build", (_event, ctx) => {
+      const text = [shared ? sharedMemoryContext(dir) : null, knowledgeContext(knowledge, ctx?.agentId)].filter(Boolean).join("\n\n");
+      return text ? { appendSystemContext: text } : undefined;
+    });
   },
 });

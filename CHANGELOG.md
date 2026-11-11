@@ -8,6 +8,12 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `aiwb-memory` 0.2.0: knowledge base folders (`knowledge` config, for every agent and per agent): each agent is told
+  its folders, to look things up there and that it may save notes there as Markdown; the folders themselves are
+  searched by OpenClaw's memory search. The shared memory folder (`dir`) is now optional.
+
 ## [0.1.0] - 2026-11-11
 
 First public release. Plugin versions: `aiwb-claude-bridge` 0.1.0, `aiwb-fork-settings` 0.4.0,

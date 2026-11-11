@@ -12,7 +12,7 @@ each plugin with `openclaw plugins install --link`.
 |---|---|---|
 | `judge/` | `judge` | judge: a model from another family evaluates the answer (`judge` skill) |
 | `claude-bridge/` | `aiwb-claude-bridge` | Claude Desktop & Code bridge: the "Projects" chat tree by project folder, old chats continued in agents, live run status, drag-and-drop order, live import of Claude Code memory ([README](claude-bridge/README.md)) |
-| `shared-memory/` | `aiwb-memory` | shared memory for all agents, as in Claude Desktop |
+| `shared-memory/` | `aiwb-memory` | shared memory for all agents, as in Claude Desktop, and each agent's knowledge base folders |
 | `fork-settings/` | `aiwb-fork-settings` | fork settings: which OpenClaw fork settings are in effect in the Gateway, and setting them; a Proxy page in the Control UI (routes editor, reachability check) and a Chat files page (folders whose files the chat serves, for all agents and per agent) ([README](fork-settings/README.md)) |
 | `office/` | `aiwb-office` | Office documents in chat: local LibreOffice → PDF preview, and their text for the model (document extractor) |
 | `mcp/scheduled-tasks/` | MCP `scheduled-tasks` | scheduled tasks with Claude Desktop tools on top of `openclaw automations` |

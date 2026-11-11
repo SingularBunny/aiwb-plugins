@@ -1,7 +1,7 @@
 {
   "id": "aiwb-memory",
   "name": "Shared memory",
-  "description": "Shared memory for all agents, as in Claude Desktop: facts about the user and common rules are in every agent's context, and are written to one shared folder",
+  "description": "Shared memory for all agents, as in Claude Desktop: facts about the user and common rules are in every agent's context, and are written to one shared folder; each agent also learns its knowledge base folders",
   "categories": [
     "productivity"
   ],
@@ -15,6 +15,16 @@
       "dir": {
         "type": "string",
         "description": "Absolute path to the shared memory folder: USER.md, MEMORY.md (index), memory/*.md (facts)"
+      },
+      "knowledge": {
+        "type": "object",
+        "description": "Knowledge base folders by agent id (\"*\" for every agent): absolute paths of note folders the agent searches and may write to",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }

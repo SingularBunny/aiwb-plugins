@@ -29,6 +29,23 @@ export function sharedMemoryContext(dir) {
   ].join("\n");
 }
 
+/**
+ * Knowledge base folders of this agent: the folders for every agent ("*") and its own (config key = agent id).
+ * Returns the system prompt section, or null when the agent has none.
+ */
+export function knowledgeContext(knowledge, agentId) {
+  const dirs = [...new Set([...(knowledge?.["*"] ?? []), ...((agentId && knowledge?.[agentId]) || [])])];
+  if (!dirs.length) return null;
+  return [
+    "# Knowledge base",
+    `Knowledge base folders: ${dirs.join(", ")}.`,
+    "Look things up there before answering from general knowledge: memory search (memory_search) finds the Markdown notes, or read the files.",
+    "You may add to it: save new notes, summaries and conclusions there as Markdown files (.md), following the folder's existing",
+    "structure, names and links; edit an existing note rather than creating a duplicate. Keep memory facts (about the user and how to",
+    "work) in memory, not here.",
+  ].join("\n");
+}
+
 // The turn triggered by OpenClaw's background command completion notice (`Exec completed …`, tools.exec.notifyOnExit)
 // runs even when the agent already waited for the result and reported it: an agent on Claude CLI replies
 // "the result is already above" as a redundant message. NO_REPLY is OpenClaw's silent reply; nothing goes to the chat.

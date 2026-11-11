@@ -16,6 +16,17 @@ test("shared memory: prompt has USER.md, the index and where to write", async ()
   assert.ok(t.includes("Exec completed") && t.includes("NO_REPLY"));
 });
 
+test("knowledge base: an agent gets the folders for everyone plus its own, and may write there", async () => {
+  const { knowledgeContext } = await import("../shared-memory/context.js");
+  const knowledge = { "*": ["/k/vault"], garden: ["/k/garden", "/k/vault"] };
+  const garden = knowledgeContext(knowledge, "garden");
+  assert.ok(garden.includes("Knowledge base folders: /k/vault, /k/garden."));
+  assert.ok(garden.includes("memory_search") && garden.includes("save new notes"));
+  assert.ok(knowledgeContext(knowledge, "orchard").includes("folders: /k/vault."));
+  assert.equal(knowledgeContext({ garden: ["/k/garden"] }, "orchard"), null);
+  assert.equal(knowledgeContext(undefined, "garden"), null);
+});
+
 test("fork settings: effective value, its source, and invalid falls back to default", async () => {
   const { effectiveSettings, summaryLine } = await import("../fork-settings/settings.js");
   const env = { OPENCLAW_WORKER_PENDING_TASKS: "4096", OPENCLAW_WORKER_HEAP_MB: "lots", OPENCLAW_CATALOG_IMPORT_OWNER: "1",
