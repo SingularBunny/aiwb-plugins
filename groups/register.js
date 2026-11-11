@@ -62,7 +62,9 @@ export function registerGroups(api, { stateDir, now = () => Date.now(), detach =
 
   // Replies arrive through the agent_end hook: background work has no request scope, so it may start a run but
   // not read a session (sessions.get answers nothing) or reliably observe one (agent.wait gets cancelled).
-  const waiting = new Map();                                   // session key → { resolve, reject }
+  // OpenClaw registers a plugin more than once (the hook may land in another registration than the method that
+  // waits), so the waiters are shared by the whole process.
+  const waiting = (globalThis[Symbol.for("aiwb-groups.waiting")] ??= new Map());   // session key → { resolve, reject }
   api.on("agent_end", (event, ctx) => {
     const waiter = ctx?.sessionKey && waiting.get(ctx.sessionKey);
     if (!waiter) return;
