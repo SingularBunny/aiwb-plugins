@@ -200,7 +200,7 @@ test("compare plugin: scopes, parallel asking with one failure, CLI models throu
   assert.deepEqual([written.answerers.count, written.judge.ref], [4, "anthropic/claude-opus-9"]);
 });
 
-test("compare UI: a page, a session panel and a composer action that opens the panel for that chat", () => {
+test("compare UI: a page, a session panel and an action under a chat message that opens the panel for that chat", () => {
   const registered = { pages: [], panels: [], actions: [] };
   const opened = [];
   const host = { ui: {
@@ -211,17 +211,16 @@ test("compare UI: a page, a session panel and a composer action that opens the p
   } };
   const dispose = ui.activate(host);
   assert.deepEqual([registered.pages, registered.panels], [["multi-model"], ["multi-model"]]);
-  const [action, messageAction] = registered.actions;
-  assert.deepEqual([action.id, action.placement, action.label], ["ask-several", "composer", "Several models"]);
-  action.run({ sessionKey: "agent:garden:main", agentId: "garden", host });
-  assert.deepEqual(opened, [["multi-model", { sessionKey: "agent:garden:main", agentId: "garden" }]]);
+  // No composer action: the only chat entry is the action under a message.
+  assert.deepEqual(registered.actions.map((a) => a.placement), ["message"]);
+  const [messageAction] = registered.actions;
   // Under a message: hidden for an empty one, and opens the panel of that chat with the message as the question.
   assert.deepEqual([messageAction.placement, messageAction.icon], ["message", "layers"]);
   assert.equal(messageAction.resolve({ message: { role: "user", text: "  " } }).hidden, true);
   assert.equal(messageAction.resolve({ message: { role: "assistant", text: "Pears?" } }).hidden, false);
   messageAction.run({ sessionKey: "agent:garden:main", agentId: "garden", message: { role: "assistant", text: "Pears?" }, host });
-  assert.equal(opened.length, 2);
-  // An OpenClaw that refuses the "message" placement still gets the page, the panel and the composer action.
+  assert.deepEqual(opened, [["multi-model", { sessionKey: "agent:garden:main", agentId: "garden" }]]);
+  // An OpenClaw that refuses the "message" placement still gets the page and the panel.
   const strict = { ui: { ...host.ui, registerAction: (a) => { if (a.placement === "message") throw new Error("unknown placement"); return () => {}; } } };
   assert.doesNotThrow(() => ui.activate(strict)());
   dispose();

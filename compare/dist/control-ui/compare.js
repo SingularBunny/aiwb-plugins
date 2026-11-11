@@ -3,7 +3,8 @@
 // list), the judge that picks the most consistent answer, the merger, the default model. The models come from
 // models.list (every provider OpenClaw has); the ranking from aiwb-compare.rank. "Try it" asks the answering
 // models and shows the answers side by side, with "Pick the most consistent" and "Merge".
-// In a chat, the composer action "Several models" opens the same view as a session panel; there "Continue in chat"
+// In a chat, "Ask several models" under a message opens the same view as a session panel with that message as the
+// question; there "Continue in chat"
 // sends the chosen (or merged) answer to that session as an ordinary message, so the agent goes on from it
 // whatever model or runtime it uses.
 
@@ -365,8 +366,6 @@ export default {
     const disposers = [
       host.ui.registerPage({ id: PAGE_ID, label: "Multi-model", mount: mountComparePage }),
       host.ui.registerPanel?.({ id: PANEL_ID, label: "Several models", mount: (container, context) => mountComparePage(container, context, { panel: true }) }),
-      host.ui.registerAction?.({ id: "ask-several", label: "Several models", placement: "composer",
-        run: ({ sessionKey, agentId, host: h }) => (h || host).ui.openPanel(PANEL_ID, { sessionKey, agentId }) }),
       // Under a chat message (OpenClaw fork, placement "message"): ask several models that message's text. An
       // OpenClaw without it may refuse the placement; the rest of the plugin works the same.
       (() => { try { return host.ui.registerAction?.({ id: "ask-several-message", label: "Ask several models", placement: "message", icon: "layers",
