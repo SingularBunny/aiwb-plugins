@@ -8,7 +8,7 @@ import { createArenaSource, loadArena, matchArena, nameTokens } from "../compare
 import { familyOf, pickAnswerers, pickJudge, rankModels } from "../compare/candidates.js";
 import { mergePrompt, parseChoice, selectConsensus, selectionPrompt } from "../compare/consensus.js";
 import { METHODS, readSettings, registerCompare } from "../compare/register.js";
-import { resolveRoles } from "../compare/dist/control-ui/compare.js";
+import ui, { continueMessage, resolveRoles } from "../compare/dist/control-ui/compare.js";
 
 // Arena rows in the dataset's shape; names as Arena writes them.
 const ARENA = [
@@ -198,4 +198,25 @@ test("compare plugin: scopes, parallel asking with one failure, CLI models throu
   assert.equal(saved.ok, true);
   const written = calls.find((c) => c[0] === "config")[1].plugins.entries["aiwb-compare"].config;
   assert.deepEqual([written.answerers.count, written.judge.ref], [4, "anthropic/claude-opus-9"]);
+});
+
+test("compare UI: a page, a session panel and a composer action that opens the panel for that chat", () => {
+  const registered = { pages: [], panels: [], actions: [] };
+  const opened = [];
+  const host = { ui: {
+    registerPage: (p) => { registered.pages.push(p.id); return () => {}; },
+    registerPanel: (p) => { registered.panels.push(p.id); return () => {}; },
+    registerAction: (a) => { registered.actions.push(a); return () => {}; },
+    openPanel: (id, session) => opened.push([id, session]),
+  } };
+  const dispose = ui.activate(host);
+  assert.deepEqual([registered.pages, registered.panels], [["multi-model"], ["multi-model"]]);
+  const [action] = registered.actions;
+  assert.deepEqual([action.id, action.placement, action.label], ["ask-several", "composer", "Several models"]);
+  action.run({ sessionKey: "agent:garden:main", agentId: "garden", host });
+  assert.deepEqual(opened, [["multi-model", { sessionKey: "agent:garden:main", agentId: "garden" }]]);
+  dispose();
+  // The message that carries the chosen answer into the chat names the question, the kind and the model.
+  assert.equal(continueMessage("Why?", "Most consistent answer", "groq/x", "Because."),
+    'I asked several models: "Why?"\n\nMost consistent answer (groq/x):\n\nBecause.');
 });

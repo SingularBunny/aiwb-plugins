@@ -3,9 +3,13 @@
 // list), the judge that picks the most consistent answer, the merger, the default model. The models come from
 // models.list (every provider OpenClaw has); the ranking from aiwb-compare.rank. "Try it" asks the answering
 // models and shows the answers side by side, with "Pick the most consistent" and "Merge".
+// In a chat, the composer action "Several models" opens the same view as a session panel; there "Continue in chat"
+// sends the chosen (or merged) answer to that session as an ordinary message, so the agent goes on from it
+// whatever model or runtime it uses.
 
 const PLUGIN_ID = "aiwb-compare";
 const PAGE_ID = "multi-model";
+const PANEL_ID = "multi-model";
 const M = { state: `${PLUGIN_ID}.state`, rank: `${PLUGIN_ID}.rank`, settings: `${PLUGIN_ID}.settings`,
   ask: `${PLUGIN_ID}.ask`, select: `${PLUGIN_ID}.select`, merge: `${PLUGIN_ID}.merge` };
 
@@ -36,7 +40,12 @@ export function resolveRoles(settings, suggested) {
   return { answerers, judge, merger: pick(settings.merger, judge), defaultModel: pick(settings.defaultModel, judge) };
 }
 
-function mountComparePage(container, context) {
+/** The chat message that carries a chosen answer into the session. */
+export function continueMessage(question, kind, model, text) {
+  return [`I asked several models: "${question}"`, "", `${kind} (${model}):`, "", text].join("\n");
+}
+
+function mountComparePage(container, context, { panel = false } = {}) {
   let ctx = context;
   const host = context.host;
   let state = null;
@@ -254,11 +263,49 @@ function mountComparePage(container, context) {
         el("details", {}, el("summary", {}, `Judge notes (${trial.select.judge})`), trial.select.notes.map((n) => el("pre", { class: "aiwb-compare__text" }, redact(n))))) : null,
       trial?.merge ? el("article", { class: "aiwb-compare__answer is-merged" },
         el("h3", {}, `Merged by ${modelLabel(trial.merge.model)}`, el("span", { class: "aiwb-compare__badge" }, "synthesis")),
-        el("pre", { class: "aiwb-compare__text" }, redact(trial.merge.text))) : null);
+        el("pre", { class: "aiwb-compare__text" }, redact(trial.merge.text))) : null,
+      panel ? continueActions(chosen) : null);
+  }
+
+  // Panel only: send the chosen or merged answer to this chat as an ordinary message.
+  function continueActions(chosen) {
+    const options = [];
+    if (chosen) {
+      const a = trial.answers.find((x) => x.ref === chosen);
+      options.push(["Continue with the most consistent answer", "Most consistent answer", chosen, a.text]);
+    }
+    if (trial?.merge) options.push(["Continue with the merged answer", "Merged answer", trial.merge.model, trial.merge.text]);
+    if (!options.length || !ctx.sessionKey) return null;
+    return el("div", { class: "aiwb-compare__actions" }, options.map(([label, kind, model, text]) =>
+      el("button", { type: "button", class: "btn primary", disabled: Boolean(busy) || !canWrite(), onclick: () => sendToChat(continueMessage(trial.question, kind, model, text)) }, label)));
+  }
+
+  async function sendToChat(message) {
+    busy = "sending";
+    render();
+    try {
+      await host.request("chat.send", { sessionKey: ctx.sessionKey, ...(ctx.agentId ? { agentId: ctx.agentId } : {}), message,
+        idempotencyKey: `aiwb-compare-${Date.now()}-${Math.random().toString(36).slice(2)}` });
+      notice = "Sent to the chat.";
+    } catch (failure) {
+      error = `Not sent: ${failure?.message || failure}`;
+    } finally {
+      busy = "";
+      render();
+    }
   }
 
   function render() {
     if (disposed) return;
+    if (panel) {
+      const roles = ranking && draft ? resolveRoles(draft, ranking.suggested) : null;
+      page.replaceChildren(...[
+        el("h2", {}, "Several models"),
+        roles ? hint(`${roles.answerers.map((m) => modelLabel(m.ref)).join(", ")} → judge ${roles.judge ? modelLabel(roles.judge.ref) : "none"}. Roles: the Multi-model page.`)
+          : hint(busy === "loading" ? "Loading…" : ""),
+        error ? message("danger", error) : null, notice ? message("ok", notice) : null, trySection()].filter(Boolean));
+      return;
+    }
     page.replaceChildren(
       el("header", { class: "aiwb-compare__header" },
         el("div", {}, el("h1", {}, "Multi-model"),
@@ -289,8 +336,13 @@ function mountComparePage(container, context) {
 export default {
   id: PLUGIN_ID,
   activate(host) {
-    const dispose = host.ui.registerPage({ id: PAGE_ID, label: "Multi-model", mount: mountComparePage });
-    return () => dispose?.();
+    const disposers = [
+      host.ui.registerPage({ id: PAGE_ID, label: "Multi-model", mount: mountComparePage }),
+      host.ui.registerPanel?.({ id: PANEL_ID, label: "Several models", mount: (container, context) => mountComparePage(container, context, { panel: true }) }),
+      host.ui.registerAction?.({ id: "ask-several", label: "Several models", placement: "composer",
+        run: ({ sessionKey, agentId, host: h }) => (h || host).ui.openPanel(PANEL_ID, { sessionKey, agentId }) }),
+    ];
+    return () => disposers.forEach((d) => d?.());
   },
 };
 
