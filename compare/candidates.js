@@ -42,9 +42,16 @@ export function pickAnswerers(ranked, count = 3) {
   return out;
 }
 
-/** The judge: the best rated reasoning model, else the best rated one, of a family none of the answerers is from. */
+/** A model with no per-call price: free, or run through a CLI on a subscription (Claude Code by login). */
+export const costsNothingPerCall = (m) => m.free || Boolean(m.runtime && /cli$/.test(m.runtime));
+
+/**
+ * The judge: the best rated reasoning model, else the best rated one, of a family none of the answerers is from —
+ * among models with no per-call price only. A paid model is never chosen automatically (the owner decides on cost);
+ * pick it by name on the page.
+ */
 export function pickJudge(ranked, answerers) {
   const families = new Set(answerers.map((a) => a.family));
-  const others = ranked.filter((m) => !families.has(m.family) && m.rating !== null);
+  const others = ranked.filter((m) => !families.has(m.family) && m.rating !== null && costsNothingPerCall(m) && !m.failed);
   return others.find((m) => m.reasoning) || others[0] || null;
 }

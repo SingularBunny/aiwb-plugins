@@ -56,6 +56,11 @@ test("compare: answerers are the top free models of different families, the judg
   const judge = pickJudge(ranked, answerers);
   assert.equal(judge.ref, "anthropic/claude-opus-9");
   assert.equal(judge.runtime, "claude-cli");
+  // A paid model rated higher is never picked automatically: the judge costs nothing per call.
+  const withPaid = rankModels([...CATALOG, row("openrouter", "carbon/carbon-9", { reasoning: true })],
+    [...ARENA, { model_name: "Carbon 9", organization: "carbon", rating: 1600, rank: 1 }]);
+  assert.equal(withPaid[0].ref, "openrouter/carbon/carbon-9");
+  assert.equal(pickJudge(withPaid, answerers).ref, "anthropic/claude-opus-9");
   // With no other family rated, there is no judge rather than one judging its own family.
   assert.equal(pickJudge(ranked.filter((m) => m.family !== "anthropic"), answerers), null);
 });
