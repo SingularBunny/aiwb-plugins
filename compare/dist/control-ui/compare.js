@@ -40,6 +40,11 @@ export function resolveRoles(settings, suggested) {
   return { answerers, judge, merger: pick(settings.merger, judge), defaultModel: pick(settings.defaultModel, judge) };
 }
 
+// A question handed over by the message action ("Ask several models" under a chat message): kept per session until
+// that session's panel takes it, and announced to a panel that is already open.
+const handed = new Map();
+const HANDOFF_EVENT = "aiwb-compare:ask";
+
 /** The chat message that carries a chosen answer into the session. */
 export function continueMessage(question, kind, model, text) {
   return [`I asked several models: "${question}"`, "", `${kind} (${model}):`, "", text].join("\n");
@@ -320,9 +325,25 @@ function mountComparePage(container, context, { panel = false } = {}) {
         rolesSection(), trySection(), candidatesSection()].filter(Boolean));
   }
 
+  // Panel: a question handed over by a message action is asked as soon as the roles are known.
+  let pending = null;
+  const takeHandoff = () => {
+    const key = session().sessionKey;
+    if (!panel || !key || !handed.has(key)) return;
+    pending = handed.get(key);
+    handed.delete(key);
+    trial = { question: pending, answers: [], select: null, merge: null };
+    render();
+    if (ranking) { const q = pending; pending = null; void ask(q); }
+  };
+  const onHandoff = () => takeHandoff();
+  if (panel) globalThis.addEventListener?.(HANDOFF_EVENT, onHandoff);
   const unsubscribe = host.subscribe?.(() => { if (!disposed && host.connection?.connected && !ranking) void refresh(); });
   render();
-  void refresh();
+  void refresh().then(() => {
+    takeHandoff();
+    if (pending && ranking) { const q = pending; pending = null; void ask(q); }
+  });
   return {
     update(next) {
       const was = ctx.presented;
@@ -332,6 +353,7 @@ function mountComparePage(container, context, { panel = false } = {}) {
     dispose() {
       disposed = true;
       unsubscribe?.();
+      if (panel) globalThis.removeEventListener?.(HANDOFF_EVENT, onHandoff);
       page.remove();
     },
   };
@@ -345,6 +367,15 @@ export default {
       host.ui.registerPanel?.({ id: PANEL_ID, label: "Several models", mount: (container, context) => mountComparePage(container, context, { panel: true }) }),
       host.ui.registerAction?.({ id: "ask-several", label: "Several models", placement: "composer",
         run: ({ sessionKey, agentId, host: h }) => (h || host).ui.openPanel(PANEL_ID, { sessionKey, agentId }) }),
+      // Under a chat message (OpenClaw fork, placement "message"): ask several models that message's text. An
+      // OpenClaw without it may refuse the placement; the rest of the plugin works the same.
+      (() => { try { return host.ui.registerAction?.({ id: "ask-several-message", label: "Ask several models", placement: "message", icon: "layers",
+        resolve: ({ message }) => ({ hidden: !message?.text?.trim() }),
+        run: ({ sessionKey, agentId, message, host: h }) => {
+          handed.set(sessionKey, message.text.trim());
+          (h || host).ui.openPanel(PANEL_ID, { sessionKey, agentId });
+          globalThis.dispatchEvent?.(new Event(HANDOFF_EVENT));
+        } }); } catch { return undefined; } })(),
     ];
     return () => disposers.forEach((d) => d?.());
   },
