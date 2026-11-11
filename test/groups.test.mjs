@@ -64,27 +64,27 @@ test("groups: a round — mentioned agents first, then the manager, stopped by t
 test("groups plugin: save, send, and a background round through subagent runs in per-group sessions", async () => {
   const methods = {};
   const calls = [];
-  const sessions = {};
+  const hooks = {};
   const api = {
+    on: (name, handler) => { hooks[name] = handler; },
     registerGatewayMethod: (name, handler, opts) => { methods[name] = { handler, scope: opts.scope }; },
     registerControlUiDescriptor: () => {},
     runtime: {
       config: { current: () => ({ agents: { entries: { garden: { identity: { name: "Gardener" } }, orchard: {} } } }) },
       subagent: {
         complete: async ({ agentId }) => { calls.push(["manager", agentId]); return { text: calls.some((c) => c[0] === "run" && c[1].includes(":orchard:")) ? "NEXT: USER" : "NEXT: orchard" }; },
+        // The reply comes back through agent_end, as the Gateway fires it at the end of the turn; nothing reads the session.
         run: async ({ sessionKey, message }) => {
           calls.push(["run", sessionKey, message.split("\n")[0]]);
           const agent = sessionKey.split(":")[1];
-          sessions[sessionKey] = [...(sessions[sessionKey] || []), { role: "user", content: message }, { role: "assistant", content: `answer from ${agent}` }];
+          setTimeout(() => hooks.agent_end({ success: true, messages: [{ role: "user", content: message }, { role: "assistant", content: `answer from ${agent}` }] },
+            { sessionKey }), 1);
           return { runId: `r-${agent}` };
         },
-        // The observation is cancelled for one agent, as it is for background work; its reply still counts.
-        waitForRun: async ({ runId }) => { if (runId === "r-orchard") throw new Error("agent.wait observation cancelled"); return { status: "ok" }; },
-        getSessionMessages: async ({ sessionKey }) => ({ messages: sessions[sessionKey] || [] }),
       },
     },
   };
-  registerGroups(api, { stateDir: mkdtempSync(path.join(os.tmpdir(), "groups-")), sleep: async () => {} });
+  registerGroups(api, { stateDir: mkdtempSync(path.join(os.tmpdir(), "groups-")) });
   const call = (name, params) => new Promise((resolve) => methods[name].handler({ params, respond: (ok, payload, error) => resolve({ ok, payload, error }) }));
   assert.deepEqual(Object.fromEntries(Object.entries(methods).map(([k, v]) => [k.split(".").pop(), v.scope])),
     { agents: "operator.read", list: "operator.read", get: "operator.read", save: "operator.write", remove: "operator.write", send: "operator.write", stop: "operator.write" });
