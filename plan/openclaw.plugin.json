@@ -1,0 +1,16 @@
+{
+  "id": "aiwb-plan",
+  "name": "Plan mode",
+  "description": "Plan mode for any model: /plan makes the agent research and present a plan; file edits are refused, commands and subagents wait for approval, and approving the plan ends plan mode",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

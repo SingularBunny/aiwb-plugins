@@ -1,0 +1,12 @@
+{
+  "name": "aiwb-plan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plan mode for any model: research and an approved plan before any change",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

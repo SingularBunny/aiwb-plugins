@@ -17,6 +17,7 @@ each plugin with `openclaw plugins install --link`.
 | `office/` | `aiwb-office` | Office documents in chat: local LibreOffice → PDF preview, and their text for the model (document extractor); text copies of knowledge base PDF and Office files for memory search |
 | `compare/` | `aiwb-compare` | Multi-model: several models answer, a judge picks the most consistent answer or one merges them; a Control UI page for the roles |
 | `groups/` | `aiwb-groups` | Groups: several agents in one conversation, a manager picks who speaks next |
+| `plan/` | `aiwb-plan` | Plan mode for any model: `/plan`, then research and an approved plan before any change |
 | `mcp/scheduled-tasks/` | MCP `scheduled-tasks` | scheduled tasks with Claude Desktop tools on top of `openclaw automations` |
 
 Documentation lives in ai-workbench, `docs/` (features: judge, projects, shared memory, document preview,

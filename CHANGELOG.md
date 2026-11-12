@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-plan` 0.1.0: plan mode for any model, as in Claude Code — `/plan` in a chat; while it plans, file edits
+  are refused, exec commands and subagent starts wait for approval, and the `exit_plan_mode` tool shows the plan for
+  approval; approving it ends plan mode.
 - `aiwb-groups` 0.1.0: Groups — several agents in one conversation, a manager agent picks who speaks next, @mentions
   first, a turn limit per message; each agent answers with a full turn in its own session for the group.
 - `aiwb-compare` 0.1.0: Multi-model — ask several models at once, pick the most consistent answer (Universal
