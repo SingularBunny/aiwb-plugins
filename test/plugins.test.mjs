@@ -960,3 +960,13 @@ test("memory sync: without a configured tree root the sync stays off and nothing
   assert.equal(on({ enabled: true, root: "/p" }).root, "/p");
   assert.equal(ms.folderOf("/p/Garden/x", null), null);
 });
+
+test("office preview: a long sheet becomes its first rows with a note; CSV quotes and line breaks kept", async () => {
+  const { parseCsv, sheetsPreviewHtml } = await import("../office/sheets.js");
+  assert.deepEqual(parseCsv('a,"b, c","say ""hi"""\r\n1,"two\nlines",3\n'), [["a", "b, c", 'say "hi"'], ["1", "two\nlines", "3"]]);
+  const csv = ["Name,Value", ...Array.from({ length: 5 }, (_, i) => `row${i},<${i}>`), ",", ""].join("\n");
+  const html = sheetsPreviewHtml([{ name: "Q&A", csv }, { name: "Short", csv: "x,y\n" }], 3);
+  assert.ok(html.includes("<h2>Q&amp;A</h2>") && html.includes("the first 3 of 6 rows"));
+  assert.ok(html.includes("<td>&lt;1&gt;</td>") && !html.includes("row2"));
+  assert.ok(html.includes("<h2>Short</h2>") && !html.slice(html.indexOf("Short")).includes("Preview:"));
+});

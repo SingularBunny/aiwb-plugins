@@ -10,11 +10,12 @@
 // LibreOffice runs in the converter's single-slot queue (never next to a preview conversion) with its
 // profile and timeout. Results are cached by content next to the PDFs (<sha256>.txt).
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 
 import { ConvertError } from "./convert.js";
+import { CSV_ALL_SHEETS, readSheets, stripBom } from "./sheets.js";
 
 const WRITER = "writer";
 const CALC = "calc";
@@ -38,7 +39,6 @@ export const OFFICE_MIME_TYPES = {
   "application/x-cfb": [OLE, ""],
 };
 
-const CSV_ALL_SHEETS = "csv:Text - txt - csv (StarCalc):44,34,76,1,,0,false,true,false,false,false,-1";
 const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
 
 /**
@@ -160,19 +160,6 @@ export const formatSlides = (slides) => slides.map(({ text, notes }, i) =>
   [`## Slide ${i + 1}`, text, notes && `Notes:\n${notes}`].filter(Boolean).join("\n\n")).join("\n\n");
 
 export const formatSheets = (sheets) => sheets.map(({ name, csv }) => `## Sheet ${name}\n\n${csv.trimEnd()}`).join("\n\n");
-
-const stripBom = (s) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
-
-/** Sheet CSV files written by LibreOffice, in workbook order ("Writing sheet <name> -> <path>" on stdout). */
-async function readSheets(work, stdout) {
-  const written = [...stdout.matchAll(/^Writing sheet (.+?) -> (.+)$/gm)].map(([, name, file]) => ({ name, file: path.basename(file.trim()) }));
-  const files = (await readdir(work)).filter((f) => f.startsWith("source-") && f.endsWith(".csv"));
-  const ordered = written.filter((w) => files.includes(w.file));
-  for (const file of files.sort()) {
-    if (!ordered.some((w) => w.file === file)) ordered.push({ name: file.slice("source-".length, -".csv".length), file });
-  }
-  return Promise.all(ordered.map(async ({ name, file }) => ({ name, csv: stripBom(await readFile(path.join(work, file), "utf8")) })));
-}
 
 /**
  * Document extractor over a converter from convert.js. onCached is called after a new text lands in

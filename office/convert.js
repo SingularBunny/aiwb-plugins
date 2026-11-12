@@ -7,15 +7,20 @@
 // Text extraction for the model (extract.js) goes through the same queue and profile.
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { CSV_ALL_SHEETS, readSheets, sheetsPreviewHtml } from "./sheets.js";
 
 /** What gets converted: Word, Excel, PowerPoint and their OpenDocument counterparts. */
 export const OFFICE_EXTENSIONS = [".docx", ".doc", ".odt", ".rtf", ".xlsx", ".xls", ".ods", ".pptx", ".ppt", ".odp"];
 /** The Control UI viewer does not open anything larger (OpenClaw docs web/control-ui/chat.md). */
 export const MAX_PDF_BYTES = 16 * 1024 * 1024;
 export const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
+
+/** Spreadsheets: a full PDF over the limit falls back to a short table preview (sheets.js). */
+const SHEET_EXTENSIONS = [".xlsx", ".xls", ".ods"];
 
 export const isOfficeFile = (name) => OFFICE_EXTENSIONS.includes(path.extname(String(name)).toLowerCase());
 
@@ -63,9 +68,22 @@ export function createConverter({ soffice = "soffice", cacheDir, timeoutMs = 120
       const input = path.join(work, `source${ext}`);
       await copyFile(source, input);
       await runSoffice(["--convert-to", "pdf", "--outdir", work, input]);
-      const out = path.join(work, "source.pdf");
-      const made = await stat(out).catch(() => null);
+      let out = path.join(work, "source.pdf");
+      let made = await stat(out).catch(() => null);
       if (!made) throw new ConvertError("convert-failed", "LibreOffice did not produce a PDF");
+      // A long sheet prints to hundreds of pages: show its first rows instead, with a note saying so.
+      if (made.size > MAX_PDF_BYTES && SHEET_EXTENSIONS.includes(ext)) {
+        const stdout = await runSoffice(["--convert-to", CSV_ALL_SHEETS, "--outdir", work, input]);
+        const sheets = await readSheets(work, stdout);
+        if (sheets.length > 0) {
+          const html = path.join(work, "preview.html");
+          await writeFile(html, sheetsPreviewHtml(sheets));
+          await runSoffice(["--convert-to", "pdf:writer_web_pdf_Export", "--outdir", work, html]);
+          out = path.join(work, "preview.pdf");
+          made = await stat(out).catch(() => null);
+          if (!made) throw new ConvertError("convert-failed", "LibreOffice did not produce a PDF");
+        }
+      }
       if (made.size > MAX_PDF_BYTES) throw new ConvertError("too-large", `PDF is larger than ${MAX_PDF_BYTES >> 20} MB; the viewer will not open it`);
       await rename(out, pdfPath);
       return { pdfPath, bytes: made.size, cached: false };

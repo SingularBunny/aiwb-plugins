@@ -24,6 +24,11 @@ All notable changes to the ai-workbench plugins. The format follows
   (LibreOffice) files in knowledge folders, re-reading only changed files and removing copies of deleted ones;
   `aiwb-memory` tells agents where the copies are and to read the originals.
 
+### Fixed
+
+- `aiwb-office` 0.2.1: a long spreadsheet whose PDF is over the viewer's 16 MB opens as a preview of the first 1000
+  rows of each sheet, with a note, instead of failing.
+
 ## [0.1.0] - 2026-11-11
 
 First public release. Plugin versions: `aiwb-claude-bridge` 0.1.0, `aiwb-fork-settings` 0.4.0,
