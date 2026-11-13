@@ -31,7 +31,8 @@ export default definePluginEntry({
       toolName: event.toolName, params: event.params, sessionKey: ctx?.sessionKey,
     }), { matcher: [...EDIT_TOOLS, ...ASK_TOOLS, EXIT_TOOL] });
 
-    // Offered only while the chat plans; the approval itself is the before_tool_call card above.
+    // Offered only while the chat plans; the approval itself is the before_tool_call card above. The manifest
+    // declares the name in contracts.tools: without it the Gateway refuses the registration.
     api.registerTool((ctx) => (sessions.has(ctx?.sessionKey) ? {
       name: EXIT_TOOL,
       label: "Present plan",
@@ -40,6 +41,6 @@ export default definePluginEntry({
       async execute() {
         return { content: [{ type: "text", text: "The user approved the plan. Plan mode is off: carry out the plan now." }], details: {} };
       },
-    } : null));
+    } : null), { name: EXIT_TOOL });
   },
 });

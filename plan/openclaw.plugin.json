@@ -8,6 +8,11 @@
   "activation": {
     "onStartup": true
   },
+  "contracts": {
+    "tools": [
+      "exit_plan_mode"
+    ]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

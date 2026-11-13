@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { EDIT_REFUSAL, PlanSessions, planCommand, planToolDecision } from "../plan/plan-mode.js";
+import { EDIT_REFUSAL, EXIT_TOOL, PlanSessions, planCommand, planToolDecision } from "../plan/plan-mode.js";
 
 const fresh = () => path.join(mkdtempSync(path.join(os.tmpdir(), "plan-")), "workbench", "plan-mode.json");
 
@@ -46,4 +46,9 @@ test("plan: approving the plan ends plan mode; declining keeps it; an empty plan
   await approval.onResolution("allow-once");
   assert.ok(!sessions.has("agent:main:chat"));
   assert.equal(decide({ plan: "again" }), undefined);
+});
+
+test("plan: the manifest declares exit_plan_mode, or the Gateway refuses to register it", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../plan/openclaw.plugin.json", import.meta.url), "utf8"));
+  assert.deepEqual(manifest.contracts?.tools, [EXIT_TOOL]);
 });
