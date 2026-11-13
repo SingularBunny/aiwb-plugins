@@ -35,6 +35,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-office` 0.3.1: knowledge text copies name an OCR tool that is installed but does not run, with its error
+  (for example a broken Python library), instead of treating OCR as not installed.
 - `aiwb-compare` 0.1.2: the manifest declares the panel and the message action it registers (`uiCapabilities`);
   the Control UI warned that they were missing.
 - `aiwb-plan` 0.1.1: `exit_plan_mode` is declared in the manifest's `contracts.tools`; without it the Gateway refused

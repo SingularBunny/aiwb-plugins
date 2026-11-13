@@ -44,15 +44,24 @@ const missing = new Set();
 
 // OCR: both tools, and at least one recognition language.
 const OCR_TIMEOUT_MS = 10 * 60_000;
+// An installed tool that does not run (a broken Python library, say) is named with its error: otherwise OCR is
+// silently off and looks like "not installed".
+let ocrProblem = null;
 async function ocrLanguages() {
-  try {
-    await run("ocrmypdf", ["--version"]);
-    const listed = String(await run("tesseract", ["--list-langs"])).split("\n").slice(1).map((l) => l.trim()).filter(Boolean);
-    const langs = ocrLangsSetting ? ocrLangsSetting.split("+").filter((l) => listed.includes(l)) : listed.filter((l) => !["osd", "equ"].includes(l));
-    return langs.length ? langs.join("+") : null;
-  } catch {
-    return null;
+  for (const [tool, args] of [["ocrmypdf", ["--version"]], ["tesseract", ["--version"]]]) {
+    try { await run(tool, args); } catch (error) {
+      if (error?.code !== "ENOENT") ocrProblem = `${tool} is installed but does not run: ${lastLine(error)}`;
+      return null;
+    }
   }
+  const listed = String(await run("tesseract", ["--list-langs"]).catch(() => "")).split("\n").slice(1).map((l) => l.trim()).filter(Boolean);
+  const langs = ocrLangsSetting ? ocrLangsSetting.split("+").filter((l) => listed.includes(l)) : listed.filter((l) => !["osd", "equ"].includes(l));
+  if (!langs.length) ocrProblem = `no Tesseract language data${ocrLangsSetting ? ` for ${ocrLangsSetting}` : ""}`;
+  return langs.length ? langs.join("+") : null;
+}
+function lastLine(error) {
+  const lines = String(error?.stderr || error?.message || error).trim().split("\n").filter(Boolean);
+  return lines.at(-1) ?? "unknown error";
 }
 const ocrLangs = await ocrLanguages();
 
@@ -88,6 +97,7 @@ try {
   const extensions = ocrLangs ? [...TEXT_EXTENSIONS, ...IMAGE_EXTENSIONS] : TEXT_EXTENSIONS;
   const t = await syncKnowledgeText({ scopes, extract, extensions, ocr: Boolean(ocrLangs) });
   if (ocrLangs) console.log(`  OCR languages: ${ocrLangs}`);
+  else if (ocrProblem) console.log(`  OCR is off: ${ocrProblem}`);
   console.log(`knowledge text: updated ${t.updated}, unchanged ${t.unchanged}, removed ${t.removed}, too large ${t.skipped}, failed ${t.failed.length}`);
   if (missing.size) console.log(`  not installed: ${[...missing].join(", ")} — files that need them have no text copy, or only part of it`);
   for (const f of t.failed.slice(0, 20)) console.log(`  ✗ ${f.file}: ${f.error}`);
