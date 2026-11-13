@@ -20,6 +20,11 @@ each plugin with `openclaw plugins install --link`.
 | `plan/` | `aiwb-plan` | Plan mode for any model: `/plan`, then research and an approved plan before any change |
 | `mcp/scheduled-tasks/` | MCP `scheduled-tasks` | scheduled tasks with Claude Desktop tools on top of `openclaw automations` |
 
+System programs from the package manager, all optional (a missing one turns its feature off): `python3` for the
+judge; LibreOffice (`soffice`) for `aiwb-office`; `pdftotext` (poppler), OCRmyPDF and Tesseract for knowledge base
+text copies. The ai-workbench install plan lists the missing ones with an install command (ai-workbench
+`docs/install/system-programs.md`).
+
 Documentation lives in ai-workbench, `docs/` (features: judge, projects, shared memory, document preview,
 scheduled tasks; OpenClaw from the fork: `aiwb-fork-settings`).
 
