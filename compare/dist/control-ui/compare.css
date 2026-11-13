@@ -2,6 +2,10 @@
   width: min(100%, 1200px);
   margin: 0 auto;
   padding: var(--space-5, 24px);
+  /* A side panel is a fixed-height flex box that clips: the view scrolls itself, or answers below the first are cut off. */
+  box-sizing: border-box;
+  min-height: 0;
+  overflow-y: auto;
   color: var(--text);
   overflow-wrap: anywhere;
 }
