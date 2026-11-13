@@ -1,0 +1,12 @@
+{
+  "name": "aiwb-gpu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GPU load and memory in the Control UI, and which models and processes hold it",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

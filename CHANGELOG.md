@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-gpu` 0.1.0: GPU use in the Control UI — `GPU 35% · 5.1/8.0 GB` in the chat header and a GPU side panel with
+  load, memory and who holds it (Ollama with its models from `/api/ps`, the Gateway's llama.cpp embeddings, llama.cpp,
+  LM Studio, other processes); NVIDIA GPUs through `nvidia-smi`.
 - `aiwb-plan` 0.1.0: plan mode for any model, as in Claude Code — `/plan` in a chat; while it plans, file edits
   are refused, exec commands and subagent starts wait for approval, and the `exit_plan_mode` tool shows the plan for
   approval; approving it ends plan mode.
@@ -32,6 +35,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-compare` 0.1.2: the manifest declares the panel and the message action it registers (`uiCapabilities`);
+  the Control UI warned that they were missing.
 - `aiwb-plan` 0.1.1: `exit_plan_mode` is declared in the manifest's `contracts.tools`; without it the Gateway refused
   to register the tool, and plan mode could not be left by approving a plan.
 - `aiwb-office` 0.2.1: a long spreadsheet whose PDF is over the viewer's 16 MB opens as a preview of the first 1000

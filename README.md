@@ -18,6 +18,7 @@ each plugin with `openclaw plugins install --link`.
 | `compare/` | `aiwb-compare` | Multi-model: several models answer, a judge picks the most consistent answer or one merges them; a Control UI page for the roles |
 | `groups/` | `aiwb-groups` | Groups: several agents in one conversation, a manager picks who speaks next |
 | `plan/` | `aiwb-plan` | Plan mode for any model: `/plan`, then research and an approved plan before any change |
+| `gpu/` | `aiwb-gpu` | GPU load and memory: a line in the chat header and a side panel with the models and processes that hold GPU memory (NVIDIA, `nvidia-smi`) |
 | `mcp/scheduled-tasks/` | MCP `scheduled-tasks` | scheduled tasks with Claude Desktop tools on top of `openclaw automations` |
 
 System programs from the package manager, all optional (a missing one turns its feature off): `python3` for the

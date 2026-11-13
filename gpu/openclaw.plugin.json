@@ -1,0 +1,26 @@
+{
+  "id": "aiwb-gpu",
+  "name": "GPU",
+  "description": "GPU load and memory in the Control UI: a line in the chat header and a side panel with the models and processes that hold GPU memory (Ollama with its models, llama.cpp, LM Studio, the Gateway's local embeddings). NVIDIA GPUs, through nvidia-smi.",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "uiCapabilities": [
+    "panel",
+    "accessory"
+  ],
+  "controlUi": {
+    "entry": "dist/control-ui/gpu.js",
+    "styles": [
+      "dist/control-ui/gpu.css"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

@@ -9,7 +9,9 @@
     "onStartup": true
   },
   "uiCapabilities": [
-    "page"
+    "page",
+    "panel",
+    "action"
   ],
   "controlUi": {
     "entry": "dist/control-ui/compare.js",
