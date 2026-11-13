@@ -26,9 +26,14 @@ All notable changes to the ai-workbench plugins. The format follows
 - `aiwb-office` 0.2.0: `bin/knowledge-text.mjs` keeps Markdown text copies of the PDF (pdftotext) and Office
   (LibreOffice) files in knowledge folders, re-reading only changed files and removing copies of deleted ones;
   `aiwb-memory` tells agents where the copies are and to read the originals.
+- `aiwb-office` 0.3.0: knowledge text copies recognize scans — PDF pages without a text layer through OCRmyPDF
+  (`--skip-text`), images through Tesseract, in the installed Tesseract languages (`--ocr-langs` to choose); a PDF
+  copied before OCR was installed is redone once it is.
 
 ### Fixed
 
+- `aiwb-plan` 0.1.1: `exit_plan_mode` is declared in the manifest's `contracts.tools`; without it the Gateway refused
+  to register the tool, and plan mode could not be left by approving a plan.
 - `aiwb-office` 0.2.1: a long spreadsheet whose PDF is over the viewer's 16 MB opens as a preview of the first 1000
   rows of each sheet, with a note, instead of failing.
 

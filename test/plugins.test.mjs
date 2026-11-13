@@ -110,6 +110,29 @@ test("knowledge text: PDF and Office files get Markdown copies, unchanged ones a
   assert.notEqual(mirrorDir(root, "/a/Vault"), mirrorDir(root, "/b/Vault"));
 });
 
+test("knowledge text: scanned pages and images go to OCR; a copy made without OCR is redone once OCR is installed", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const os = await import("node:os");
+  const { syncKnowledgeText, listSources, mergeOcrPages, pageHasText, TEXT_EXTENSIONS, IMAGE_EXTENSIONS } = await import("../office/knowledge-text.js");
+  // OCRmyPDF's --skip-text rule: a page with any text keeps it; only empty pages take the OCR sidecar's text.
+  assert.equal(pageHasText(" \n "), false);
+  assert.equal(mergeOcrPages("Contract\f \f", "[OCR skipped on page(s) 1]\fScanned annex\f"), "Contract\fScanned annex\f");
+  const vault = mkdtempSync(path.join(os.tmpdir(), "kt-ocr-")), root = path.join(vault, "..", `${path.basename(vault)}-text`);
+  writeFileSync(path.join(vault, "scan.pdf"), "S");
+  writeFileSync(path.join(vault, "photo.png"), "P");
+  assert.deepEqual(listSources(vault), ["scan.pdf"]);
+  assert.deepEqual(listSources(vault, [...TEXT_EXTENSIONS, ...IMAGE_EXTENSIONS]), ["photo.png", "scan.pdf"]);
+  let calls = 0;
+  const noOcr = async () => { calls += 1; return { text: "", ocrPending: true }; };
+  const scopes = [{ root, sources: [vault] }];
+  await syncKnowledgeText({ scopes, extract: noOcr });
+  assert.equal((await syncKnowledgeText({ scopes, extract: noOcr })).unchanged, 1);   // not redone while OCR is missing
+  assert.equal(calls, 1);
+  const withOcr = await syncKnowledgeText({ scopes, extract: async () => "recognized", ocr: true });
+  assert.equal(withOcr.updated, 1);
+  assert.equal((await syncKnowledgeText({ scopes, extract: async () => "again", ocr: true })).unchanged, 1);
+});
+
 test("fork settings: effective value, its source, and invalid falls back to default", async () => {
   const { effectiveSettings, summaryLine } = await import("../fork-settings/settings.js");
   const env = { OPENCLAW_WORKER_PENDING_TASKS: "4096", OPENCLAW_WORKER_HEAP_MB: "lots", OPENCLAW_CATALOG_IMPORT_OWNER: "1",

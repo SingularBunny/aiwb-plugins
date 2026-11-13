@@ -7,14 +7,20 @@
 // A copy starts with the original's path; agents read and cite the original. Only files whose size or mtime
 // changed are extracted again; copies of files that are gone are removed. Hidden folders (.obsidian, .trash,
 // .git) and symbolic links are skipped, as memory search skips them.
+//
+// Scans: PDF pages without a text layer and images are recognized with OCR when OCRmyPDF and Tesseract are installed,
+// by OCRmyPDF's own rule (--skip-text: a page with any text is not recognized again). Without them a PDF copy keeps
+// the text pages and is redone once OCR appears; images get no copy.
 import { createHash } from "node:crypto";
 import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const TEXT_EXTENSIONS = [".pdf", ".docx", ".doc", ".odt", ".rtf", ".xlsx", ".xls", ".ods", ".pptx", ".ppt", ".odp"];
+export const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".tif", ".tiff"];
 export const MAX_SOURCE_BYTES = 64 * 1024 * 1024;
 export const MAX_TEXT_CHARS = 2 * 1024 * 1024;
 const STATE = ".knowledge-text.json";
+const NO_OCR = ":no-ocr";
 
 /** The mirror folder of one source folder inside a scope root: readable name plus a hash of the full path. */
 export function mirrorDir(root, source) {
@@ -22,8 +28,8 @@ export function mirrorDir(root, source) {
   return path.join(root, `${name}-${createHash("sha256").update(source).digest("hex").slice(0, 8)}`);
 }
 
-/** Files to copy under dir: relative paths of PDF and Office files, hidden folders and symbolic links skipped. */
-export function listSources(dir) {
+/** Files to copy under dir: relative paths of files with these extensions, hidden folders and symbolic links skipped. */
+export function listSources(dir, extensions = TEXT_EXTENSIONS) {
   const out = [];
   const walk = (rel) => {
     let entries;
@@ -32,7 +38,7 @@ export function listSources(dir) {
       if (e.name.startsWith(".") || e.isSymbolicLink()) continue;
       const child = rel ? path.join(rel, e.name) : e.name;
       if (e.isDirectory()) walk(child);
-      else if (e.isFile() && TEXT_EXTENSIONS.includes(path.extname(e.name).toLowerCase()) && !e.name.startsWith("~$")) out.push(child);
+      else if (e.isFile() && extensions.includes(path.extname(e.name).toLowerCase()) && !e.name.startsWith("~$")) out.push(child);
     }
   };
   walk("");
@@ -48,6 +54,15 @@ export function copyText(source, text, now = new Date()) {
     body.trim(), ""].join("\n");
 }
 
+/** pdftotext pages (form-feed separated): does a page have any text, as OCRmyPDF's --skip-text decides. */
+export const pageHasText = (page) => /[\p{L}\p{N}]/u.test(page);
+
+/** The pdftotext pages, with each page that has no text taken from the OCR sidecar (also form-feed separated). */
+export function mergeOcrPages(pdfText, sidecar) {
+  const ocr = String(sidecar ?? "").split("\f");
+  return String(pdfText ?? "").split("\f").map((page, i) => (pageHasText(page) ? page : (ocr[i] ?? page))).join("\f");
+}
+
 function readState(file) {
   try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; }
 }
@@ -61,10 +76,11 @@ function writeAtomic(file, text) {
 
 /**
  * Bring the copies of one scope up to date. scopes: [{ root, sources: [folders] }]; extract(file, ext, signal) →
- * text, or throws. Returns counts and the failures ({ file, error }). Mirror folders of sources no longer listed
- * are removed from the root.
+ * text or { text, ocrPending } (pages left for OCR, which is not installed), or throws. ocr: OCR is installed now, so
+ * copies made without it are redone. Returns counts and the failures ({ file, error }). Mirror folders of sources no
+ * longer listed are removed from the root.
  */
-export async function syncKnowledgeText({ scopes, extract, now = () => new Date(), signal, log = () => {} }) {
+export async function syncKnowledgeText({ scopes, extract, extensions = TEXT_EXTENSIONS, ocr = false, now = () => new Date(), signal, log = () => {} }) {
   const totals = { updated: 0, unchanged: 0, removed: 0, skipped: 0, failed: [] };
   for (const { root, sources } of scopes) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
@@ -75,7 +91,7 @@ export async function syncKnowledgeText({ scopes, extract, now = () => new Date(
       const stateFile = path.join(dest, STATE);
       const state = readState(stateFile);
       const next = {};
-      for (const rel of listSources(source)) {
+      for (const rel of listSources(source, extensions)) {
         signal?.throwIfAborted();
         const file = path.join(source, rel);
         const copy = path.join(dest, `${rel}.md`);
@@ -83,11 +99,13 @@ export async function syncKnowledgeText({ scopes, extract, now = () => new Date(
         try { st = statSync(file); } catch { continue; }
         const key = `${st.size}:${Math.trunc(st.mtimeMs)}`;
         if (st.size > MAX_SOURCE_BYTES) { totals.skipped += 1; continue; }
-        if (state[rel] === key && lstatSafe(copy)) { next[rel] = key; totals.unchanged += 1; continue; }
+        const done = state[rel] === key || (!ocr && state[rel] === `${key}${NO_OCR}`);
+        if (done && lstatSafe(copy)) { next[rel] = state[rel]; totals.unchanged += 1; continue; }
         try {
-          const text = await extract(file, path.extname(rel).toLowerCase(), signal);
+          const result = await extract(file, path.extname(rel).toLowerCase(), signal);
+          const text = typeof result === "object" && result !== null ? result.text : result;
           writeAtomic(copy, copyText(file, String(text ?? ""), now()));
-          next[rel] = key;
+          next[rel] = result?.ocrPending ? `${key}${NO_OCR}` : key;
           totals.updated += 1;
           log(`copied ${file}`);
         } catch (error) {
