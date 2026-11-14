@@ -35,6 +35,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-plan` 0.1.2: while a chat plans, `process`, `browser`, `message`, `cron`, `sessions_send`, `gateway` and `nodes`
+  calls also wait for approval (before only `exec` and subagents); the plan names its riskiest assumption, a check per
+  step, the steps that cannot be undone and the effort as a range.
 - `aiwb-memory` 0.2.1: the shared USER.md and MEMORY.md go into the system prompt fenced and marked as saved notes —
   preferences in them are followed, but they grant no permissions and override no instructions.
 - judge 0.1.1: requests carry their own User-Agent; Groq's Cloudflare refused Python-urllib's default with 403

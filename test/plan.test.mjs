@@ -30,6 +30,8 @@ test("plan: while planning, edits are refused and commands and subagents ask; ot
   assert.equal(exec.description, "ls -la");
   assert.deepEqual(exec.allowedDecisions, ["allow-once", "deny"]);
   assert.match(decide("sessions_spawn", { task: "Survey the tests" }).requireApproval.title, /subagent/);
+  for (const tool of ["process", "browser", "message", "cron", "sessions_send"]) assert.ok(decide(tool, { action: "x" }).requireApproval, tool);
+  assert.equal(decide("message", { action: "send", to: "a" }).requireApproval.description, '{"action":"send","to":"a"}');
   assert.equal(decide("read"), undefined);
   assert.equal(decide("write", {}, "agent:main:other"), undefined);
 });

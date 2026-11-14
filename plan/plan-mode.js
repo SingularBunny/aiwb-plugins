@@ -5,8 +5,10 @@ import path from "node:path";
 export const EXIT_TOOL = "exit_plan_mode";
 /** Tools that change files: refused while the chat plans. */
 export const EDIT_TOOLS = ["write", "edit", "apply_patch"];
-/** Tools that may change anything: each call waits for the user's approval while the chat plans. */
-export const ASK_TOOLS = ["exec", "sessions_spawn"];
+/** Tools that may change anything or reach outside: each call waits for the user's approval while the chat plans. */
+export const ASK_TOOLS = ["exec", "process", "sessions_spawn", "sessions_send", "browser", "message", "cron", "gateway", "nodes"];
+
+const ASK_TITLES = { exec: "Plan mode: run this command?", sessions_spawn: "Plan mode: start this subagent?" };
 
 export const EDIT_REFUSAL =
   "Plan mode is on: files cannot be changed yet. Keep researching, then present the plan with the exit_plan_mode tool.";
@@ -14,9 +16,12 @@ export const EDIT_REFUSAL =
 export const PLAN_CONTEXT = [
   "Plan mode is on in this chat. Research and think, but do not change anything yet:",
   "- write, edit and apply_patch are refused;",
-  "- every exec command and subagent start waits for the user's approval, so use them only to read;",
+  "- every command, subagent, browser action, message and scheduled task waits for the user's approval, so use them only to read;",
   "- when the plan is ready, call exit_plan_mode with the whole plan in Markdown. The user approves it",
   "  (plan mode ends and you carry it out) or declines it (revise the plan and present it again).",
+  "A plan names: the goal and how you will know it is done; the riskiest assumption and how you checked it; the steps,",
+  "each with its own check; the steps that cannot be undone (deleting, sending, publishing, paying), marked as such;",
+  "and the effort as a range, not a single number.",
 ].join("\n");
 
 /** Sessions in plan mode, kept in one JSON file so a Gateway restart keeps them. */
@@ -79,10 +84,12 @@ export function planToolDecision(sessions, { toolName, params, sessionKey }) {
     };
   }
   if (ASK_TOOLS.includes(toolName)) {
-    const what = toolName === "exec" ? String(params?.command ?? "") : String(params?.task ?? params?.label ?? "");
+    const what = toolName === "exec" ? String(params?.command ?? "")
+      : toolName === "sessions_spawn" ? String(params?.task ?? params?.label ?? "")
+      : JSON.stringify(params ?? {}).slice(0, 500);
     return {
       requireApproval: {
-        title: toolName === "exec" ? "Plan mode: run this command?" : "Plan mode: start this subagent?",
+        title: ASK_TITLES[toolName] ?? `Plan mode: allow ${toolName}?`,
         description: what || toolName,
         severity: "warning",
         allowedDecisions: ["allow-once", "deny"],
