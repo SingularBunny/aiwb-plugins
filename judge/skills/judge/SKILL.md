@@ -41,6 +41,13 @@ show the report as is.
    add your own opinion of the verdict on top. Exit code 2 means "NOT EVALUATED": say so and give
    the reason from the report.
 
+## PASS rate
+
+If the user asks how often the judge passes answers or whether it can be trusted, run
+`python3 {baseDir}/scripts/judge.py --stats` and show the output. Labels are the user's own verdicts:
+`--to-label N` lists answers to label, `--label <id> pass|fail` records a verdict the user gave you. Never label
+answers yourself.
+
 ## Do not
 
 - Do not give a verdict yourself if the script failed: "not evaluated" is an honest answer, a

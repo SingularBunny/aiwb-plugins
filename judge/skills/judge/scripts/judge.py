@@ -5,6 +5,10 @@
     python3 judge.py < exchange.json
 
     python3 judge.py --from-session               # question and answer from this folder's Claude Code transcript
+
+    python3 judge.py --stats                      # PASS rate per judge; corrected for its errors once labelled
+    python3 judge.py --to-label 5                 # recent judged answers without a human label
+    python3 judge.py --label <id> pass|fail       # your own verdict on that answer
 The judge model is any OpenAI-compatible provider (AI-agnostic) or Claude CLI:
     WORKBENCH_JUDGE_MODEL     provider model id, required (e.g. openai/gpt-…);
                               claude-cli/<id> uses `claude -p` and its login (Claude subscription), no key
@@ -14,6 +18,8 @@ The judge model is any OpenAI-compatible provider (AI-agnostic) or Claude CLI:
     WORKBENCH_JUDGE_PANEL     up to two more judge models, comma-separated (same base URL and key): a panel of
                               judges from different families, majority per criterion; the third judge is asked
                               only when the first two disagree, since it cannot change an agreed majority
+    WORKBENCH_JUDGE_LOG       verdict log, default ~/.openclaw/judge/verdicts.jsonl (question, answer, verdict;
+                              stays on this machine); "off" keeps no log. See judge_monitor.py for the method
 Anything missing from the environment is read from ~/.openclaw/.env (the same file the Gateway uses).
 
 The request bypasses the environment proxy: the key is never sent through someone else's proxy;
@@ -34,7 +40,9 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from judge_core import (  # noqa: E402
@@ -50,6 +58,7 @@ from judge_core import (  # noqa: E402
     render_report,
     strip_report,
 )
+import judge_monitor as monitor  # noqa: E402
 
 TIMEOUT_SECONDS = 120  # chosen, not measured
 # Cap on the verdict length. Without it OpenRouter reserves the model's full output window and refuses
@@ -188,12 +197,48 @@ def judge(exchange: dict, cfg: dict, transport=None) -> tuple[str, str]:
     return overall(verdicts, criteria), render_report(verdicts, criteria, label, " ".join(filter(None, [warning, note])) or None)
 
 
+def log_path(env: dict) -> Optional[Path]:
+    value = env.get("WORKBENCH_JUDGE_LOG", "").strip()
+    if value.lower() == "off":
+        return None
+    return Path(value).expanduser() if value else Path.home() / ".openclaw" / "judge" / "verdicts.jsonl"
+
+
+def monitor_command(args, log: Optional[Path]) -> int:
+    if log is None:
+        print("The verdict log is off (WORKBENCH_JUDGE_LOG=off).", file=sys.stderr)
+        return 1
+    verdicts, labels = monitor.read_log(log)
+    if args.stats:
+        print(monitor.render_stats(monitor.stats(verdicts, labels)))
+    elif args.to_label:
+        print(monitor.to_label(verdicts, labels, args.to_label))
+    else:
+        rid, verdict = args.label[0], args.label[1].upper()
+        if verdict not in ("PASS", "FAIL"):
+            print("The verdict is pass or fail.", file=sys.stderr)
+            return 1
+        if not any(r["id"] == rid for r in verdicts):
+            print(f"No verdict {rid} in {log}.", file=sys.stderr)
+            return 1
+        monitor.append(log, {"label_for": rid, "human": verdict, "ts": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        print(f"Labelled {rid}: {verdict}.")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--input", type=Path, help="JSON {question, answer, answer_model}; stdin if omitted")
     ap.add_argument("--from-session", action="store_true",
                     help="take question and answer from this working directory's Claude Code transcript (agent on Claude CLI)")
+    ap.add_argument("--stats", action="store_true", help="PASS rate per judge from the log, corrected once labelled")
+    ap.add_argument("--to-label", type=int, metavar="N", help="list N recent judged answers without a human label")
+    ap.add_argument("--label", nargs=2, metavar=("ID", "VERDICT"), help="your own verdict on a logged answer: pass or fail")
     args = ap.parse_args(argv)
+    env = load_env(dict(os.environ), Path.home() / ".openclaw" / ".env")
+    log = log_path(env)
+    if args.stats or args.to_label or args.label:
+        return monitor_command(args, log)
     try:
         if args.from_session:
             records = []
@@ -214,7 +259,6 @@ def main(argv=None) -> int:
     if not str(exchange.get("answer", "")).strip():
         print("Input has no answer to evaluate (answer field).", file=sys.stderr)
         return 1
-    env = load_env(dict(os.environ), Path.home() / ".openclaw" / ".env")
     try:
         cfg = settings(env)
     except (JudgeError, OSError, ValueError) as exc:
@@ -222,6 +266,11 @@ def main(argv=None) -> int:
         return 2
     result, report = judge(exchange, cfg)
     print(report)
+    if log:
+        try:
+            monitor.append(log, monitor.make_record(exchange, result, " + ".join([cfg["model"], *cfg["panel"]]), cfg["criteria"]))
+        except OSError as exc:
+            print(f"Verdict not logged: {exc}", file=sys.stderr)
     return 2 if result == "NOT EVALUATED" else 0
 
 

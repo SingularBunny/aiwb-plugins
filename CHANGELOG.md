@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `judge` 0.3.0: a local verdict log (`~/.openclaw/judge/verdicts.jsonl`, `WORKBENCH_JUDGE_LOG`), `--stats` with
+  the PASS rate per judge and its interval, human labels (`--to-label`, `--label`) and the share of good answers
+  corrected for the judge's errors (Rogan–Gladen with the interval of Lee et al., ICML 2026; no fixed threshold).
 - `aiwb-compare` 0.3.0: **Merge** ends with what stays unresolved (the disagreements and the key assumptions) and
   what would settle it (evidence that fits one view and not the other), as in Analysis of Competing Hypotheses
   (Heuer, Psychology of Intelligence Analysis, ch. 8); when the answers agree, the merge has no such sections.

@@ -312,3 +312,57 @@ class TestPanel:
     def test_panel_from_env(self):
         cfg = judge.settings({"WORKBENCH_JUDGE_MODEL": "openai/gpt-x", "WORKBENCH_JUDGE_PANEL": " anthropic/claude-y, google/gemini-z ,x/y"})
         assert cfg["panel"] == ["anthropic/claude-y", "google/gemini-z"]
+
+
+import judge_monitor as monitor  # noqa: E402
+
+
+class TestMonitor:
+    """PASS rate of the judge vs. the share of good answers: Lee et al. 2026 (Rogan–Gladen with labels)."""
+
+    def test_rogan_gladen_estimate(self):
+        c = monitor.corrected_rate(0.6, 1000, 0.9, 200, 0.8, 200)
+        assert c["rate"] == pytest.approx((0.6 + 0.9 - 1) / (0.9 + 0.8 - 1))
+        assert c["low"] < c["rate"] < c["high"]
+
+    def test_more_labels_narrow_the_interval(self):
+        few = monitor.corrected_rate(0.6, 1000, 0.9, 20, 0.8, 20)
+        many = monitor.corrected_rate(0.6, 1000, 0.9, 400, 0.8, 400)
+        assert many["high"] - many["low"] < few["high"] - few["low"]
+
+    def test_judge_no_better_than_chance_gives_no_correction(self):
+        assert monitor.corrected_rate(0.9, 100, 0.2, 10, 0.8, 10) is None
+
+    def test_lenient_judge_shows_as_low_specificity(self, tmp_path):
+        log = tmp_path / "v.jsonl"
+        for i in range(6):
+            monitor.append(log, monitor.make_record({"question": f"q{i}", "answer": "a"}, "PASS", "j", CRITERIA))
+        verdicts, _ = monitor.read_log(log)
+        for r, human in zip(verdicts, ["PASS", "PASS", "FAIL", "FAIL", "FAIL", "PASS"]):
+            monitor.append(log, {"label_for": r["id"], "human": human})
+        row = monitor.stats(*monitor.read_log(log))[0]
+        assert (row["rate"], row["m1"], row["q1"], row["m0"], row["q0"]) == (1.0, 3, 1.0, 3, 0.0)
+        assert row["corrected"] is None   # q0 + q1 = 1: the PASS rate says nothing
+        assert "no better than chance" in monitor.render_stats([row])
+
+    def test_not_evaluated_is_counted_apart_and_judges_apart(self, tmp_path):
+        log = tmp_path / "v.jsonl"
+        monitor.append(log, monitor.make_record({"question": "q", "answer": "a"}, "PASS", "j1", CRITERIA))
+        monitor.append(log, monitor.make_record({"question": "q2", "answer": "a"}, "NOT EVALUATED", "j1", CRITERIA))
+        monitor.append(log, monitor.make_record({"question": "q", "answer": "a"}, "FAIL", "j2", CRITERIA))
+        rows = {r["judge"]: r for r in monitor.stats(*monitor.read_log(log))}
+        assert (rows["j1"]["n"], rows["j1"]["not_evaluated"], rows["j2"]["rate"]) == (1, 1, 0.0)
+        assert "Not calibrated" in monitor.render_stats(list(rows.values()))
+
+    def test_label_command(self, tmp_path, monkeypatch, capsys):
+        log = tmp_path / "v.jsonl"
+        monkeypatch.setenv("WORKBENCH_JUDGE_LOG", str(log))
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        rec = monitor.make_record({"question": "q", "answer": "a"}, "PASS", "j", CRITERIA)
+        monitor.append(log, rec)
+        assert judge.main(["--to-label", "3"]) == 0 and rec["id"] in capsys.readouterr().out
+        assert judge.main(["--label", "nope", "pass"]) == 1
+        assert judge.main(["--label", rec["id"], "maybe"]) == 1
+        assert judge.main(["--label", rec["id"], "fail"]) == 0
+        assert monitor.read_log(log)[1] == {rec["id"]: "FAIL"}
+        assert judge.main(["--stats"]) == 0 and "FAIL where a human says FAIL 0% of 1" in capsys.readouterr().out
