@@ -6,7 +6,8 @@ import path from "node:path";
 
 import { createArenaSource, loadArena, matchArena, nameTokens } from "../compare/arena.js";
 import { familyOf, pickAnswerers, pickJudge, rankModels } from "../compare/candidates.js";
-import { mergePrompt, parseChoice, selectConsensus, selectionPrompt } from "../compare/consensus.js";
+import { agreementMatrix, entailmentPrompt, mergePrompt, pairRelation, parseChoice, parseEntailment, selectConsensus, selectionPrompt }
+  from "../compare/consensus.js";
 import { METHODS, readSettings, registerCompare } from "../compare/register.js";
 import ui, { continueMessage, resolveRoles } from "../compare/dist/control-ui/compare.js";
 
@@ -82,6 +83,26 @@ test("compare: the choice is made twice in two orders; different picks mean no a
   assert.ok(mergePrompt("Q?", ["a", "b"]).includes("Answer 2:\nb"));
 });
 
+test("compare: agreement matrix — the semantic entropy entailment check both ways, pairs and groups", async () => {
+  assert.equal(entailmentPrompt("Q?", "A", "B"), 'We are evaluating answers to the question "Q?"\nHere are two possible answers:\n'
+    + "Possible Answer 1: A\nPossible Answer 2: B\nDoes Possible Answer 1 semantically entail Possible Answer 2? Respond with entailment, contradiction, or neutral.");
+  assert.deepEqual(["Entailment", "neutral.", "Contradiction!", "I think so", ""].map(parseEntailment), [2, 1, 0, 1, 1]);
+  assert.deepEqual([[2, 2], [2, 1], [1, 2], [1, 1], [2, 0], [0, 1]].map(([f, b]) => pairRelation(f, b)),
+    ["same", "compatible", "compatible", "different", "contradict", "contradict"]);
+  // Answers 0 and 2 say "blue", 1 says "green": 0 and 2 entail each other, 1 contradicts both.
+  const says = ["blue", "green", "blue"];
+  const prompts = [];
+  const complete = async (prompt) => {
+    prompts.push(prompt);
+    const [, x, y] = /Answer 1: (\w+)\nPossible Answer 2: (\w+)/.exec(prompt);
+    return x === y ? "entailment" : "contradiction";
+  };
+  const m = await agreementMatrix({ question: "Sky colour?", answers: says, complete, parallel: 2 });
+  assert.equal(prompts.length, 6);
+  assert.deepEqual(m.pairs.map((p) => [p.a, p.b, p.relation]), [[0, 1, "contradict"], [0, 2, "same"], [1, 2, "contradict"]]);
+  assert.deepEqual(m.groups, [[0, 2], [1]]);
+});
+
 test("compare: settings fall back to defaults; roles resolve auto to the suggestion", () => {
   const s = readSettings({ answerers: { mode: "manual", count: 99, models: [{ ref: "openrouter/x/y:free" }, { ref: "bad ref" }] }, judge: "nope", maxTokens: 5 });
   assert.deepEqual(s.answerers, { mode: "manual", count: 3, models: [{ ref: "openrouter/x/y:free", runtime: null }] });
@@ -149,6 +170,7 @@ test("compare plugin: scopes, parallel asking with one failure, CLI models throu
         if (p.model.startsWith("paid/")) return { text: "", stopReason: "error", model: p.model };
         if (p.model === "openrouter/empty/model:free") return { text: "", stopReason: "error", model: p.model };
         if (p.model === "openrouter/thinker/model:free") return { text: "", stopReason: "stop", model: p.model };
+        if (p.purpose.endsWith(".agreement")) return { text: "Entailment.", model: p.model };
         if (p.purpose.endsWith(".select")) return { text: "The most consistent response is Response 1", model: p.model };
         return { text: `answer of ${p.model}`, model: p.model };
       } },
@@ -158,7 +180,14 @@ test("compare plugin: scopes, parallel asking with one failure, CLI models throu
   registerCompare(api, { stateDir, fetchJson: async () => ({ rows: [] }) });
   const call = (name, params) => new Promise((resolve) => methods[name].handler({ params, respond: (ok, payload, error) => resolve({ ok, payload, error }) }));
   assert.deepEqual(Object.fromEntries(Object.entries(methods).map(([k, v]) => [k.split(".").pop(), v.scope])),
-    { state: "operator.read", rank: "operator.read", settings: "operator.admin", ask: "operator.write", select: "operator.write", merge: "operator.write" });
+    { state: "operator.read", rank: "operator.read", settings: "operator.admin", ask: "operator.write", select: "operator.write", merge: "operator.write",
+      agreement: "operator.write" });
+
+  const agreed = await call(METHODS.agreement, { question: "Q", answers: ["a", "b"], judge: { ref: "openrouter/j/judge:free" } });
+  assert.equal(agreed.ok, true);
+  assert.deepEqual(agreed.payload.pairs.map((p) => p.relation), ["same"]);
+  assert.equal(calls.filter((c) => c[0] === "llm" && c[1] === "openrouter/j/judge:free").length, 2);
+  assert.equal((await call(METHODS.agreement, { question: "Q", answers: ["a"], judge: { ref: "openrouter/j/judge:free" } })).error.code, "INVALID_REQUEST");
 
   const asked = await call(METHODS.ask, { question: "Why is the sky blue?", models: [{ ref: "openrouter/a/one:free" }, { ref: "openrouter/bad/model:free" }] });
   assert.equal(asked.ok, true);

@@ -12,7 +12,8 @@ const PLUGIN_ID = "aiwb-compare";
 const PAGE_ID = "multi-model";
 const PANEL_ID = "multi-model";
 const M = { state: `${PLUGIN_ID}.state`, rank: `${PLUGIN_ID}.rank`, settings: `${PLUGIN_ID}.settings`,
-  ask: `${PLUGIN_ID}.ask`, select: `${PLUGIN_ID}.select`, merge: `${PLUGIN_ID}.merge` };
+  ask: `${PLUGIN_ID}.ask`, select: `${PLUGIN_ID}.select`, merge: `${PLUGIN_ID}.merge`,
+  agreement: `${PLUGIN_ID}.agreement` };
 
 // Tokens and price as the provider reported them for this answer; nothing is estimated.
 function usageLabel(usage) {
@@ -132,7 +133,7 @@ function mountComparePage(container, context, { panel = false } = {}) {
       el("p", { class: "aiwb-compare__now" }, "Now: ",
         roles.answerers.length ? roles.answerers.map((m) => modelLabel(m.ref)).join(", ") : "no answering models", " → judge ",
         roles.judge ? modelLabel(roles.judge.ref) : "none"),
-      hint(`A question costs ${roles.answerers.length} model call${roles.answerers.length === 1 ? "" : "s"}; picking the most consistent answer adds 2 judge calls (two orders), merging 1 call of the merger.`),
+      hint(`A question costs ${roles.answerers.length} model call${roles.answerers.length === 1 ? "" : "s"}; picking the most consistent answer adds 2 judge calls (two orders), merging 1 call of the merger, the agreement matrix ${roles.answerers.length * (roles.answerers.length - 1)} judge calls.`),
       canAdmin()
         ? el("div", { class: "aiwb-compare__actions" },
           el("button", { type: "button", class: "btn primary", disabled: !changed || Boolean(busy), onclick: save }, "Save"),
@@ -192,7 +193,7 @@ function mountComparePage(container, context, { panel = false } = {}) {
   async function ask(question) {
     const roles = resolveRoles(draft, ranking.suggested);
     if (!roles.answerers.length) { error = "No answering models."; render(); return; }
-    trial = { question, answers: roles.answerers.map((m) => ({ ref: m.ref, pending: true })), select: null, merge: null };
+    trial = { question, answers: roles.answerers.map((m) => ({ ref: m.ref, pending: true })), select: null, merge: null, agreement: null };
     busy = "asking";
     render();
     try {
@@ -248,7 +249,51 @@ function mountComparePage(container, context, { panel = false } = {}) {
     }
   }
 
+  async function agreement() {
+    const roles = resolveRoles(draft, ranking.suggested);
+    if (!roles.judge) { error = "No judge."; render(); return; }
+    busy = "agreement";
+    render();
+    try {
+      const good = okAnswers();
+      const r = await host.request(M.agreement, { question: trial.question, answers: good.map((a) => a.text), judge: roles.judge });
+      trial.agreement = { ...r, refs: good.map((a) => a.ref) };
+    } catch (failure) {
+      error = `No agreement matrix: ${failure?.message || failure}`;
+    } finally {
+      busy = "";
+      render();
+    }
+  }
+
   const redact = (t) => (typeof host.redact === "function" ? host.redact(t) : t);
+
+  // Pairwise relations of the answers (consensus.js, agreementMatrix): the method of semantic entropy.
+  const RELATION = {
+    same: ["same", "tone-ok", "each answer entails the other"],
+    compatible: ["compatible", "", "one answer entails the other, no contradiction"],
+    different: ["different", "tone-warn", "neither entails the other"],
+    contradict: ["contradict", "tone-danger", "the judge found a contradiction"],
+  };
+  function agreementView(m) {
+    const n = m.refs.length;
+    const cell = (a, b) => {
+      if (a === b) return el("td", { class: "aiwb-compare__num" }, "—");
+      const p = m.pairs.find((x) => x.a === Math.min(a, b) && x.b === Math.max(a, b));
+      const [label, tone, why] = RELATION[p.relation];
+      return el("td", {}, el("span", { class: `aiwb-compare__badge ${tone}`, title: why }, label));
+    };
+    const name = (i) => `${i + 1}. ${modelLabel(m.refs[i])}`;
+    const groups = m.groups.filter((g) => g.length > 1);
+    return el("div", { class: "aiwb-compare__verdict" },
+      el("table", { class: "aiwb-compare__table" },
+        el("thead", {}, el("tr", {}, el("th", {}, ""), m.refs.map((_, i) => el("th", { title: m.refs[i] }, String(i + 1))))),
+        el("tbody", {}, m.refs.map((_, a) => el("tr", {}, el("th", { scope: "row" }, name(a)), Array.from({ length: n }, (_, b) => cell(a, b)))))),
+      hint(groups.length
+        ? `Say the same: ${groups.map((g) => g.map((i) => i + 1).join(" = ")).join("; ")}.`
+        : "No two answers say the same thing.",
+      ` Judge ${m.judge}; each pair is checked both ways for entailment, as semantic entropy does (Farquhar et al., Nature 2024). Long answers are compared as a whole, so this is a coarse signal.`));
+  }
 
   function trySection() {
     if (!ranking) return null;
@@ -263,6 +308,9 @@ function mountComparePage(container, context, { panel = false } = {}) {
         trial && okAnswers().length >= 2 ? [
           el("button", { type: "button", class: "btn", disabled: Boolean(busy), onclick: pick }, busy === "selecting" ? "Picking…" : "Pick the most consistent"),
           el("button", { type: "button", class: "btn", disabled: Boolean(busy), onclick: merge }, busy === "merging" ? "Merging…" : "Merge (synthesis)"),
+          el("button", { type: "button", class: "btn", disabled: Boolean(busy), onclick: agreement,
+            title: `The judge checks every pair of answers both ways: ${okAnswers().length * (okAnswers().length - 1)} calls` },
+          busy === "agreement" ? "Comparing…" : "Agreement matrix"),
         ] : null),
       trial ? el("div", { class: "aiwb-compare__answers" }, trial.answers.map((a) => el("article", { class: `aiwb-compare__answer${a.ref === chosen ? " is-chosen" : ""}` },
         el("h3", {}, modelLabel(a.ref), a.ref === chosen ? el("span", { class: "aiwb-compare__badge tone-ok" }, "most consistent") : null),
@@ -274,6 +322,7 @@ function mountComparePage(container, context, { panel = false } = {}) {
           : message("warn", "No clear agreement: the judge picked different answers in the two orders",
             trial.select.picks.some((p) => p === null) ? " (or named none)" : "", "."),
         el("details", {}, el("summary", {}, `Judge notes (${trial.select.judge})`), trial.select.notes.map((n) => el("pre", { class: "aiwb-compare__text" }, redact(n))))) : null,
+      trial?.agreement ? agreementView(trial.agreement) : null,
       trial?.merge ? el("article", { class: "aiwb-compare__answer is-merged" },
         el("h3", {}, `Merged by ${modelLabel(trial.merge.model)}`, el("span", { class: "aiwb-compare__badge" }, "synthesis")),
         el("pre", { class: "aiwb-compare__text" }, redact(trial.merge.text))) : null,
@@ -340,7 +389,7 @@ function mountComparePage(container, context, { panel = false } = {}) {
     if (!panel || !key || !handed.has(key)) return;
     pending = handed.get(key);
     handed.delete(key);
-    trial = { question: pending, answers: [], select: null, merge: null };
+    trial = { question: pending, answers: [], select: null, merge: null, agreement: null };
     render();
     if (ranking) { const q = pending; pending = null; void ask(q); }
   };

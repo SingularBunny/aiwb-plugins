@@ -57,3 +57,68 @@ export function mergePrompt(question, answers) {
     ...answers.flatMap((a, i) => [`Answer ${i + 1}:`, a, ""]),
   ].join("\n");
 }
+
+// Agreement matrix — how the answers relate pairwise, as semantic entropy clusters answers (Kuhn et al., 2023,
+// https://arxiv.org/abs/2302.09664; Farquhar et al., Nature 2024, https://doi.org/10.1038/s41586-024-07421-0): an
+// LLM checks whether one answer semantically entails the other, in both directions. The prompt and the reading of
+// the reply are those of the authors' code (github.com/jlko/semantic_uncertainty, uncertainty_measures/
+// semantic_entropy.py, EntailmentLLM): 2 entailment, 1 neutral, 0 contradiction, an unreadable reply counts as
+// neutral. Pair relation by its are_equivalent: "same" — entailment both ways (their strict equivalence, the
+// pipeline's default); "compatible" — one way entailment, no contradiction (their non-strict equivalence);
+// "contradict" — a contradiction either way; "different" — neutral both ways. Their check was made for short
+// answers; long ones are compared as a whole, so the matrix is a coarse signal next to the judge's pick.
+
+/** The authors' entailment prompt: does answer 1 semantically entail answer 2? */
+export function entailmentPrompt(question, text1, text2) {
+  return `We are evaluating answers to the question "${question}"\n`
+    + "Here are two possible answers:\n"
+    + `Possible Answer 1: ${text1}\nPossible Answer 2: ${text2}\n`
+    + "Does Possible Answer 1 semantically entail Possible Answer 2? Respond with entailment, contradiction, or neutral.";
+}
+
+/** 2 entailment, 1 neutral, 0 contradiction — from the first 30 characters, unreadable → 1, as the authors do. */
+export function parseEntailment(text) {
+  const head = String(text ?? "").toLowerCase().slice(0, 30);
+  if (head.includes("entailment")) return 2;
+  if (head.includes("neutral")) return 1;
+  if (head.includes("contradiction")) return 0;
+  return 1;
+}
+
+/** The relation of a pair from its two directions. */
+export function pairRelation(forward, backward) {
+  if (forward === 2 && backward === 2) return "same";
+  if (forward === 0 || backward === 0) return "contradict";
+  if (forward === 2 || backward === 2) return "compatible";
+  return "different";
+}
+
+/**
+ * Every pair of answers in both directions: N·(N−1) judge calls, run `parallel` at a time. complete(prompt) → text.
+ * Returns { pairs: [{ a, b, forward, backward, relation }] (a < b, forward = does a entail b), groups } where
+ * groups are the answers that say the same thing ("same" pairs, joined transitively), largest first.
+ */
+export async function agreementMatrix({ question, answers, complete, parallel = 4 }) {
+  const jobs = [];
+  for (let a = 0; a < answers.length; a += 1) for (let b = a + 1; b < answers.length; b += 1) jobs.push([a, b], [b, a]);
+  const verdicts = new Map();
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(parallel, jobs.length) }, async () => {
+    while (next < jobs.length) {
+      const [x, y] = jobs[next++];
+      verdicts.set(`${x}>${y}`, parseEntailment(await complete(entailmentPrompt(question, answers[x], answers[y]))));
+    }
+  }));
+  const pairs = [];
+  for (let a = 0; a < answers.length; a += 1) for (let b = a + 1; b < answers.length; b += 1) {
+    const forward = verdicts.get(`${a}>${b}`);
+    const backward = verdicts.get(`${b}>${a}`);
+    pairs.push({ a, b, forward, backward, relation: pairRelation(forward, backward) });
+  }
+  const group = answers.map((_, i) => i);
+  const root = (i) => (group[i] === i ? i : (group[i] = root(group[i])));
+  for (const p of pairs) if (p.relation === "same") group[root(p.b)] = root(p.a);
+  const byRoot = new Map();
+  answers.forEach((_, i) => byRoot.set(root(i), [...(byRoot.get(root(i)) ?? []), i]));
+  return { pairs, groups: [...byRoot.values()].sort((x, y) => y.length - x.length || x[0] - y[0]) };
+}

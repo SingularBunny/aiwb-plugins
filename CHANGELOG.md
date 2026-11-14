@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-compare` 0.2.0: **Agreement matrix** — the judge checks every pair of answers both ways for entailment, as
+  semantic entropy does (Farquhar et al., Nature 2024; the authors' prompt and reading of the reply): same,
+  compatible, different or contradict, and the groups of answers that say the same; method `aiwb-compare.agreement`.
 - `aiwb-office` 0.4.0: skill `searchable-pdf` — a copy of a scanned PDF with a text layer (`<name>.ocr.pdf` next to it),
   made locally by OCRmyPDF with `--skip-text` in the installed Tesseract languages; the original and existing files are
   not overwritten. The OCR language and tool checks moved to `office/ocr.js`, shared with the knowledge text copies.

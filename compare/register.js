@@ -9,7 +9,7 @@ import path from "node:path";
 
 import { createArenaSource, retryingFetchJson } from "./arena.js";
 import { pickAnswerers, pickJudge, rankModels } from "./candidates.js";
-import { mergePrompt, selectConsensus } from "./consensus.js";
+import { agreementMatrix, mergePrompt, selectConsensus } from "./consensus.js";
 
 export const PLUGIN_ID = "aiwb-compare";
 export const TAB_ID = "multi-model";
@@ -20,6 +20,7 @@ export const METHODS = {
   ask: `${PLUGIN_ID}.ask`,
   select: `${PLUGIN_ID}.select`,
   merge: `${PLUGIN_ID}.merge`,
+  agreement: `${PLUGIN_ID}.agreement`,
 };
 const REF = /^[a-z0-9][a-z0-9._-]*\/[^\s]{1,200}$/i;
 const MAX_QUESTION = 32_000;
@@ -221,6 +222,20 @@ export function registerCompare(api, { stateDir, fetchJson = retryingFetchJson()
       const merger = model(params.model, "model");
       const merged = await complete(merger, mergePrompt(question, answers), "merge");
       respond(true, { text: merged.text, model: merger.ref, ms: merged.ms }, undefined);
+    } catch (error) {
+      failure(respond, error);
+    }
+  }, { scope: "operator.write" });
+
+  // Agreement matrix (consensus.js): the judge checks every pair of answers both ways, N·(N−1) calls.
+  api.registerGatewayMethod(METHODS.agreement, async ({ params, respond }) => {
+    try {
+      const question = text(params?.question, MAX_QUESTION, "question");
+      if (!Array.isArray(params?.answers) || params.answers.length < 2 || params.answers.length > 6) throw new InputError("answers: 2 to 6 answers");
+      const answers = params.answers.map((a, i) => text(a, MAX_ANSWER, `answers[${i}]`));
+      const judge = model(params.judge, "judge");
+      const result = await agreementMatrix({ question, answers, complete: async (prompt) => (await complete(judge, prompt, "agreement")).text });
+      respond(true, { ...result, judge: judge.ref }, undefined);
     } catch (error) {
       failure(respond, error);
     }
