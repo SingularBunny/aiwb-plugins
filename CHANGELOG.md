@@ -8,13 +8,11 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ## [Unreleased]
 
-### Fixed
-
-- `aiwb-claude-bridge` 0.2.1: "Continue in terminal", the terminal lock and the chats file also cover chats started in
-  OpenClaw — they have no `spawnedCwd`, and the folder is read from the conversation file.
-
 ### Added
 
+- `aiwb-office` 0.4.0: skill `searchable-pdf` — a copy of a scanned PDF with a text layer (`<name>.ocr.pdf` next to it),
+  made locally by OCRmyPDF with `--skip-text` in the installed Tesseract languages; the original and existing files are
+  not overwritten. The OCR language and tool checks moved to `office/ocr.js`, shared with the knowledge text copies.
 - `aiwb-claude-bridge` 0.2.0: continue a chat in Claude Code in a terminal — "Continue in terminal" in the chat's menu
   copies `cd <folder> && claude --resume <id>`; `~/.openclaw/workbench/claude-chats.md` lists every chat's command
   and works without OpenClaw; OpenClaw does not run a chat's turns while a terminal has it open.
@@ -46,6 +44,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-claude-bridge` 0.2.1: "Continue in terminal", the terminal lock and the chats file also cover chats started in
+  OpenClaw — they have no `spawnedCwd`, and the folder is read from the conversation file.
 - `aiwb-compare` 0.1.3: each answer shows the tokens and price the provider reported (`free` for $0), next to its time.
 - `aiwb-plan` 0.1.2: while a chat plans, `process`, `browser`, `message`, `cron`, `sessions_send`, `gateway` and `nodes`
   calls also wait for approval (before only `exec` and subagents); the plan names its riskiest assumption, a check per

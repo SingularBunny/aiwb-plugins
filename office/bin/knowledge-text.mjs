@@ -14,6 +14,7 @@ import { createConverter } from "../convert.js";
 import { createOfficeTextExtractor, OFFICE_MIME_TYPES } from "../extract.js";
 import { findSoffice } from "../host.js";
 import { IMAGE_EXTENSIONS, mergeOcrPages, pageHasText, syncKnowledgeText, TEXT_EXTENSIONS } from "../knowledge-text.js";
+import { ocrLanguages } from "../ocr.js";
 
 const args = process.argv.slice(2);
 const scopes = [];
@@ -44,26 +45,7 @@ const missing = new Set();
 
 // OCR: both tools, and at least one recognition language.
 const OCR_TIMEOUT_MS = 10 * 60_000;
-// An installed tool that does not run (a broken Python library, say) is named with its error: otherwise OCR is
-// silently off and looks like "not installed".
-let ocrProblem = null;
-async function ocrLanguages() {
-  for (const [tool, args] of [["ocrmypdf", ["--version"]], ["tesseract", ["--version"]]]) {
-    try { await run(tool, args); } catch (error) {
-      if (error?.code !== "ENOENT") ocrProblem = `${tool} is installed but does not run: ${lastLine(error)}`;
-      return null;
-    }
-  }
-  const listed = String(await run("tesseract", ["--list-langs"]).catch(() => "")).split("\n").slice(1).map((l) => l.trim()).filter(Boolean);
-  const langs = ocrLangsSetting ? ocrLangsSetting.split("+").filter((l) => listed.includes(l)) : listed.filter((l) => !["osd", "equ"].includes(l));
-  if (!langs.length) ocrProblem = `no Tesseract language data${ocrLangsSetting ? ` for ${ocrLangsSetting}` : ""}`;
-  return langs.length ? langs.join("+") : null;
-}
-function lastLine(error) {
-  const lines = String(error?.stderr || error?.message || error).trim().split("\n").filter(Boolean);
-  return lines.at(-1) ?? "unknown error";
-}
-const ocrLangs = await ocrLanguages();
+const { langs: ocrLangs, problem: ocrProblem } = await ocrLanguages(run, ocrLangsSetting);
 
 async function pdfText(file, signal) {
   const text = await run("pdftotext", ["-layout", "-enc", "UTF-8", file, "-"], { signal });

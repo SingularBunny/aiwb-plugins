@@ -14,7 +14,7 @@ each plugin with `openclaw plugins install --link`.
 | `claude-bridge/` | `aiwb-claude-bridge` | Claude Desktop & Code bridge: the "Projects" chat tree by project folder, old chats continued in agents, live run status, drag-and-drop order, live import of Claude Code memory ([README](claude-bridge/README.md)) |
 | `shared-memory/` | `aiwb-memory` | shared memory for all agents, as in Claude Desktop, and each agent's knowledge base folders |
 | `fork-settings/` | `aiwb-fork-settings` | fork settings: which OpenClaw fork settings are in effect in the Gateway, and setting them; a Proxy page in the Control UI (routes editor, reachability check) and a Chat files page (folders whose files the chat serves, for all agents and per agent) ([README](fork-settings/README.md)) |
-| `office/` | `aiwb-office` | Office documents in chat: local LibreOffice → PDF preview, and their text for the model (document extractor); text copies of knowledge base PDF and Office files for memory search |
+| `office/` | `aiwb-office` | Office documents in chat: local LibreOffice → PDF preview, and their text for the model (document extractor); text copies of knowledge base PDF and Office files for memory search; skill `searchable-pdf`: a scan's copy with a text layer |
 | `compare/` | `aiwb-compare` | Multi-model: several models answer, a judge picks the most consistent answer or one merges them; a Control UI page for the roles |
 | `groups/` | `aiwb-groups` | Groups: several agents in one conversation, a manager picks who speaks next |
 | `plan/` | `aiwb-plan` | Plan mode for any model: `/plan`, then research and an approved plan before any change |
@@ -23,7 +23,7 @@ each plugin with `openclaw plugins install --link`.
 
 System programs from the package manager, all optional (a missing one turns its feature off): `python3` for the
 judge; LibreOffice (`soffice`) for `aiwb-office`; `pdftotext` (poppler), OCRmyPDF and Tesseract for knowledge base
-text copies. The ai-workbench install plan lists the missing ones with an install command (ai-workbench
+text copies and searchable PDF copies. The ai-workbench install plan lists the missing ones with an install command (ai-workbench
 `docs/install/system-programs.md`).
 
 Documentation lives in ai-workbench, `docs/` (features: judge, projects, shared memory, document preview,
