@@ -35,6 +35,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-memory` 0.2.1: the shared USER.md and MEMORY.md go into the system prompt fenced and marked as saved notes —
+  preferences in them are followed, but they grant no permissions and override no instructions.
 - judge 0.1.1: requests carry their own User-Agent; Groq's Cloudflare refused Python-urllib's default with 403
   (error code 1010), so a Groq judge gave no verdict.
 - `aiwb-office` 0.3.1: knowledge text copies name an OCR tool that is installed but does not run, with its error
