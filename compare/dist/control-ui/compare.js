@@ -14,6 +14,14 @@ const PANEL_ID = "multi-model";
 const M = { state: `${PLUGIN_ID}.state`, rank: `${PLUGIN_ID}.rank`, settings: `${PLUGIN_ID}.settings`,
   ask: `${PLUGIN_ID}.ask`, select: `${PLUGIN_ID}.select`, merge: `${PLUGIN_ID}.merge` };
 
+
+// Tokens and price as the provider reported them for this answer; nothing is estimated.
+function usageLabel(usage) {
+  if (!usage) return "";
+  const tokens = usage.totalTokens ?? ((usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) || null);
+  const cost = typeof usage.costUsd === "number" ? (usage.costUsd === 0 ? "free" : `$${usage.costUsd < 0.01 ? usage.costUsd.toFixed(4) : usage.costUsd.toFixed(2)}`) : null;
+  return [tokens ? `${tokens} tokens` : null, cost].filter(Boolean).map((x) => ` · ${x}`).join("");
+}
 function el(tag, attrs, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs || {})) {
@@ -260,7 +268,7 @@ function mountComparePage(container, context, { panel = false } = {}) {
       trial ? el("div", { class: "aiwb-compare__answers" }, trial.answers.map((a) => el("article", { class: `aiwb-compare__answer${a.ref === chosen ? " is-chosen" : ""}` },
         el("h3", {}, modelLabel(a.ref), a.ref === chosen ? el("span", { class: "aiwb-compare__badge tone-ok" }, "most consistent") : null),
         a.pending ? hint("waiting…") : a.ok ? el("pre", { class: "aiwb-compare__text" }, redact(a.text)) : message("danger", a.error || "failed"),
-        a.ok ? hint(`${Math.round(a.ms / 100) / 10} s`, a.replaced ? ` · instead of ${a.replaced.map((x) => `${x.ref} (${x.error})`).join(", ")}` : "") : null))) : null,
+        a.ok ? hint(`${Math.round(a.ms / 100) / 10} s${usageLabel(a.usage)}`, a.replaced ? ` · instead of ${a.replaced.map((x) => `${x.ref} (${x.error})`).join(", ")}` : "") : null))) : null,
       trial?.select ? el("div", { class: "aiwb-compare__verdict" },
         trial.select.agreed
           ? message("ok", `Most consistent: ${modelLabel(chosen)} — the judge picked it in both orders.`)

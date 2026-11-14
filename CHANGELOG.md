@@ -35,6 +35,7 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-compare` 0.1.3: each answer shows the tokens and price the provider reported (`free` for $0), next to its time.
 - `aiwb-plan` 0.1.2: while a chat plans, `process`, `browser`, `message`, `cron`, `sessions_send`, `gateway` and `nodes`
   calls also wait for approval (before only `exec` and subagents); the plan names its riskiest assumption, a check per
   step, the steps that cannot be undone and the effort as a range.
