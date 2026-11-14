@@ -34,11 +34,35 @@ const quote = (s) => (/^[A-Za-z0-9_./~-]+$/.test(s) ? s : `'${s.replaceAll("'", 
 /** The shell command that continues the conversation in Claude Code. */
 export const terminalCommand = (cwd, sessionId) => `cd ${quote(cwd)} && claude --resume ${sessionId}`;
 
-/** What a session continues in Claude Code: { sessionId, cwd } or null for a session not bound to Claude CLI. */
-export function boundConversation(entry) {
+/** The working folder recorded in the conversation file (every Claude Code record carries cwd), or null. */
+export function transcriptCwd(file) {
+  let fd;
+  try {
+    fd = openSync(file, "r");
+    const buf = Buffer.alloc(64 * 1024);
+    const text = buf.toString("utf8", 0, readSync(fd, buf, 0, buf.length, 0));
+    for (const line of text.split("\n")) {
+      try { const cwd = JSON.parse(line)?.cwd; if (typeof cwd === "string" && path.isAbsolute(cwd)) return cwd; } catch { /* partial line */ }
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** What a session continues in Claude Code: { sessionId, cwd } or null for a session not bound to Claude CLI.
+ *  Imported chats keep their folder in spawnedCwd; chats started in OpenClaw have none, and the folder is read
+ *  from the conversation file when claudeProjectsDir is given. */
+export function boundConversation(entry, claudeProjectsDir) {
   const sessionId = entry?.cliSessionBindings?.["claude-cli"]?.sessionId;
-  const cwd = entry?.spawnedCwd;
-  return sessionId && cwd && path.isAbsolute(cwd) ? { sessionId, cwd } : null;
+  if (!sessionId) return null;
+  const spawned = entry?.spawnedCwd;
+  if (spawned && path.isAbsolute(spawned)) return { sessionId, cwd: spawned };
+  const file = claudeProjectsDir && transcriptPath(claudeProjectsDir, "/", sessionId);
+  const cwd = file && transcriptCwd(file);
+  return cwd ? { sessionId, cwd } : null;
 }
 
 /** The last records of a file, read from its end (conversation files reach tens of MB). */

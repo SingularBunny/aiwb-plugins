@@ -183,7 +183,8 @@ working folder takes it over where OpenClaw stopped, with or without OpenClaw ru
 
 - **Continue in terminal** (Control UI action in the session menus, `dist/control-ui/bridge.js`): the method
   `aiwb-claude-bridge.terminal { sessionKey }` → `{ command, sessionId, cwd, busy, chatsFile }`; the command is
-  copied and shown.
+  copied and shown. The folder is the session's `spawnedCwd` (imported chats) or, for chats started in OpenClaw,
+  the `cwd` recorded in the conversation file.
 - `~/.openclaw/workbench/claude-chats.md`: every bound chat by folder with its command, rewritten after each turn
   and every 10 minutes (only when the list changed). Claude Code's `/resume` list hides conversations OpenClaw
   started (`entrypoint: "sdk-cli"`) and shows the imported source chat under the same title instead.

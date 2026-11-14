@@ -8,6 +8,11 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `aiwb-claude-bridge` 0.2.1: "Continue in terminal", the terminal lock and the chats file also cover chats started in
+  OpenClaw — they have no `spawnedCwd`, and the folder is read from the conversation file.
+
 ### Added
 
 - `aiwb-claude-bridge` 0.2.0: continue a chat in Claude Code in a terminal — "Continue in terminal" in the chat's menu

@@ -192,7 +192,7 @@ export default definePluginEntry({
     const claudeProjectsDir = path.resolve(expandHome(cfg.memorySync?.claudeProjectsDir || "~/.claude/projects"));
     const terminalOf = (sessionKey) => {
       const found = projectEntries(api.runtime.config.current()).find((e) => e.sessionKey === sessionKey);
-      const bound = found && boundConversation(found.entry);
+      const bound = found && boundConversation(found.entry, claudeProjectsDir);
       if (!bound) return null;
       const transcript = transcriptPath(claudeProjectsDir, bound.cwd, bound.sessionId);
       return { ...bound, transcript, command: terminalCommand(bound.cwd, bound.sessionId) };
@@ -208,7 +208,7 @@ export default definePluginEntry({
     const writeChats = () => {
       try {
         const rows = projectEntries(api.runtime.config.current()).flatMap(({ agentId, sessionKey, entry }) => {
-          const bound = entry.archivedAt === undefined && boundConversation(entry);
+          const bound = entry.archivedAt === undefined && boundConversation(entry, claudeProjectsDir);
           return bound ? [{ ...bound, folder: groupOf(agentId, entry) || agentId, updatedAt: entry.updatedAt,
             title: entry.displayName || entry.label || sessionKey }] : [];
         });

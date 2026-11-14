@@ -29,6 +29,15 @@ test("terminal: the command resumes the bound conversation in its folder; unboun
   assert.equal(boundConversation({ cliSessionBindings: { "claude-cli": { sessionId: ID } } }), null);
 });
 
+test("terminal: a chat started in OpenClaw has no spawnedCwd, its folder comes from the conversation file", () => {
+  const root = fresh();
+  mkdirSync(path.join(root, "-w-garden"));
+  writeFileSync(path.join(root, "-w-garden", `${ID}.jsonl`),
+    `${JSON.stringify({ type: "queue-operation" })}\n${JSON.stringify({ type: "user", cwd: "/w/garden", sessionId: ID })}\n`);
+  assert.deepEqual(boundConversation({ cliSessionBindings: { "claude-cli": { sessionId: ID } } }, root), { sessionId: ID, cwd: "/w/garden" });
+  assert.equal(boundConversation({ cliSessionBindings: { "claude-cli": { sessionId: "missing" } } }, root), null);
+});
+
 test("terminal: an interactive claude process with the conversation counts, OpenClaw's own --print process does not", () => {
   const proc = fresh();
   const add = (pid, argv) => { mkdirSync(path.join(proc, pid)); writeFileSync(path.join(proc, pid, "cmdline"), argv.join("\0") + "\0"); };
