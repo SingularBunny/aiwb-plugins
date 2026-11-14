@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `judge` 0.2.0: a panel of judges — `WORKBENCH_JUDGE_PANEL` adds up to two more judge models; majority per
+  criterion (PoLL, Verga et al., 2024), the third judge only when the first two disagree or one fails, a tie is not
+  evaluated.
 - `aiwb-gpu` 0.1.0: GPU use in the Control UI — `GPU 35% · 5.1/8.0 GB` in the chat header and a GPU side panel with
   load, memory and who holds it (Ollama with its models from `/api/ps`, the Gateway's llama.cpp embeddings, llama.cpp,
   LM Studio, other processes); NVIDIA GPUs through `nvidia-smi`.

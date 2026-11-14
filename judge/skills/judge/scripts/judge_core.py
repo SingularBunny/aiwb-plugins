@@ -136,6 +136,27 @@ def overall(verdicts: dict[str, dict], criteria: list[dict]) -> str:
     return "NOT EVALUATED"
 
 
+def panel_verdicts(votes: list[Optional[dict[str, dict]]], criteria: list[dict]) -> dict[str, dict]:
+    """A panel of judges (PoLL, Verga et al., 2024, https://arxiv.org/abs/2404.18796): per criterion the verdict of the
+    majority of the judges that gave one (max voting). A tie leaves the criterion without a verdict. The critique is
+    that of the first judge in the majority, prefixed with the vote."""
+    out = {}
+    for c in criteria:
+        given = [v[c["id"]] for v in votes if v and c["id"] in v]
+        for state in ("PASS", "FAIL"):
+            agree = [v for v in given if v["verdict"] == state]
+            if len(agree) * 2 > len(given):
+                out[c["id"]] = {"verdict": state, "critique": f"{len(agree)} of {len(given)} judges: {agree[0]['critique']}"}
+    return out
+
+
+def panel_split(votes: list[Optional[dict[str, dict]]], criteria: list[dict]) -> bool:
+    """True when the judges so far disagree on a criterion or one of them gave no verdict: a further judge decides."""
+    if any(v is None for v in votes):
+        return True
+    return any(len({v.get(c["id"], {}).get("verdict") for v in votes}) > 1 for c in criteria)
+
+
 ICONS = {"PASS": "✅", "FAIL": "❌", "NOT EVALUATED": "⚪"}
 
 

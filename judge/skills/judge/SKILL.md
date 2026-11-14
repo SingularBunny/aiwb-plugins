@@ -46,5 +46,5 @@ show the report as is.
 - Do not give a verdict yourself if the script failed: "not evaluated" is an honest answer, a
   made-up PASS is not.
 - Do not change the judge model or criteria on the fly unless the user asks: they are set in
-  `~/.openclaw/.env` (`WORKBENCH_JUDGE_MODEL`, `WORKBENCH_JUDGE_CRITERIA`).
+  `~/.openclaw/.env` (`WORKBENCH_JUDGE_MODEL`, `WORKBENCH_JUDGE_PANEL`, `WORKBENCH_JUDGE_CRITERIA`).
 - Do not print keys or the contents of `~/.openclaw/.env`.

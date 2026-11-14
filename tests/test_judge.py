@@ -263,3 +263,52 @@ class TestClaudeCli:
         _, report = judge.judge({"question": "q", "answer": "a", "answer_model": "anthropic/claude-big"}, self.CLI,
                                 transport=lambda cfg, m: verdicts_json(**ALL_PASS))
         assert "same family" in report
+
+
+class TestPanel:
+    """A panel of judges (PoLL): majority per criterion; the third judge only when the first two disagree."""
+
+    def run_panel(self, answers):
+        asked = []
+
+        def transport(cfg, messages):
+            asked.append(cfg["model"])
+            reply = answers[cfg["model"]]
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+
+        cfg = {**CFG, "model": "openai/gpt-x", "panel": ["anthropic/claude-y", "google/gemini-z"]}
+        result, report = judge.judge({"question": "q", "answer": "a", "answer_model": "meta/llama-w"}, cfg, transport)
+        return result, report, asked
+
+    def test_two_agreeing_judges_skip_the_third(self):
+        result, report, asked = self.run_panel({"openai/gpt-x": verdicts_json(**ALL_PASS), "anthropic/claude-y": verdicts_json(**ALL_PASS)})
+        assert result == "PASS"
+        assert asked == ["openai/gpt-x", "anthropic/claude-y"]
+        assert "2 of 2 judges" in report
+
+    def test_split_goes_to_the_majority(self):
+        one_fail = {**ALL_PASS, CRITERIA[0]["id"]: "FAIL"}
+        result, report, asked = self.run_panel({"openai/gpt-x": verdicts_json(**ALL_PASS), "anthropic/claude-y": verdicts_json(**one_fail),
+                                                "google/gemini-z": verdicts_json(**ALL_PASS)})
+        assert len(asked) == 3
+        assert result == "PASS"
+        assert "2 of 3 judges" in report
+
+    def test_failed_judge_is_replaced_and_named(self):
+        result, report, asked = self.run_panel({"openai/gpt-x": TimeoutError("slow"), "anthropic/claude-y": verdicts_json(**ALL_PASS),
+                                                "google/gemini-z": verdicts_json(**ALL_PASS)})
+        assert result == "PASS"
+        assert len(asked) == 3
+        assert "openai/gpt-x: slow" in report
+
+    def test_tie_is_not_pass(self):
+        one_fail = {**ALL_PASS, CRITERIA[0]["id"]: "FAIL"}
+        result, _, _ = self.run_panel({"openai/gpt-x": verdicts_json(**ALL_PASS), "anthropic/claude-y": verdicts_json(**one_fail),
+                                       "google/gemini-z": TimeoutError()})
+        assert result == "NOT EVALUATED"
+
+    def test_panel_from_env(self):
+        cfg = judge.settings({"WORKBENCH_JUDGE_MODEL": "openai/gpt-x", "WORKBENCH_JUDGE_PANEL": " anthropic/claude-y, google/gemini-z ,x/y"})
+        assert cfg["panel"] == ["anthropic/claude-y", "google/gemini-z"]

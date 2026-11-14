@@ -11,6 +11,9 @@ The judge model is any OpenAI-compatible provider (AI-agnostic) or Claude CLI:
     WORKBENCH_JUDGE_BASE_URL  default https://openrouter.ai/api/v1
     WORKBENCH_JUDGE_API_KEY   default OPENROUTER_API_KEY
     WORKBENCH_JUDGE_CRITERIA  path to a JSON list of criteria {"id","name","question"}
+    WORKBENCH_JUDGE_PANEL     up to two more judge models, comma-separated (same base URL and key): a panel of
+                              judges from different families, majority per criterion; the third judge is asked
+                              only when the first two disagree, since it cannot change an agreed majority
 Anything missing from the environment is read from ~/.openclaw/.env (the same file the Gateway uses).
 
 The request bypasses the environment proxy: the key is never sent through someone else's proxy;
@@ -41,6 +44,8 @@ from judge_core import (  # noqa: E402
     build_judge_messages,
     exchange_from_transcript,
     overall,
+    panel_split,
+    panel_verdicts,
     parse_verdicts,
     render_report,
     strip_report,
@@ -78,10 +83,11 @@ def settings(env: dict) -> dict:
         "proxy": env.get("WORKBENCH_JUDGE_PROXY", ""),
         "max_tokens": int(env.get("WORKBENCH_JUDGE_MAX_TOKENS") or DEFAULT_MAX_TOKENS),
         "criteria": criteria,
+        "panel": [m.strip() for m in env.get("WORKBENCH_JUDGE_PANEL", "").split(",") if m.strip()][:2],
     }
 
 
-USER_AGENT = "aiwb-judge/0.1.1"
+USER_AGENT = "aiwb-judge/0.2.0"
 
 
 def make_opener(proxy: str) -> urllib.request.OpenerDirector:
@@ -150,14 +156,36 @@ def judge(exchange: dict, cfg: dict, transport=None) -> tuple[str, str]:
     """Returns (result, report). Any failure is NOT EVALUATED, not PASS."""
     criteria = cfg["criteria"]
     answer = strip_report(str(exchange.get("answer", "")))
-    warning = bias_warning(str(exchange.get("answer_model", "")), cfg["model"])
-    try:
-        transport = transport or (call_judge_cli if cfg["model"].startswith(CLI_PREFIX) else call_judge)
-        raw = transport(cfg, build_judge_messages(str(exchange.get("question", "")), answer, criteria))
-        verdicts = parse_verdicts(raw, criteria)
-        return overall(verdicts, criteria), render_report(verdicts, criteria, cfg["model"], warning)
-    except Exception as exc:  # noqa: BLE001 — network, timeout, garbage in the response: all of it is "not evaluated"
-        return "NOT EVALUATED", render_report(None, criteria, cfg["model"], warning, error=str(exc) or type(exc).__name__)
+    messages = build_judge_messages(str(exchange.get("question", "")), answer, criteria)
+    models = [cfg["model"], *cfg.get("panel", [])]
+    warning = next(filter(None, (bias_warning(str(exchange.get("answer_model", "")), m) for m in models)), None)
+
+    def ask(model):
+        send = transport or (call_judge_cli if model.startswith(CLI_PREFIX) else call_judge)
+        return parse_verdicts(send({**cfg, "model": model}, messages), criteria)
+
+    if len(models) == 1:
+        try:
+            verdicts = ask(cfg["model"])
+            return overall(verdicts, criteria), render_report(verdicts, criteria, cfg["model"], warning)
+        except Exception as exc:  # noqa: BLE001 — network, timeout, garbage in the response: all of it is "not evaluated"
+            return "NOT EVALUATED", render_report(None, criteria, cfg["model"], warning, error=str(exc) or type(exc).__name__)
+    votes, asked, errors = [], [], []
+    for model in models:
+        if len(votes) >= 2 and not panel_split(votes, criteria):
+            break
+        asked.append(model)
+        try:
+            votes.append(ask(model))
+        except Exception as exc:  # noqa: BLE001 — one judge failing leaves the others
+            votes.append(None)
+            errors.append(f"{model}: {str(exc) or type(exc).__name__}")
+    label = " + ".join(asked)
+    verdicts = panel_verdicts(votes, criteria)
+    if not verdicts:
+        return "NOT EVALUATED", render_report(None, criteria, label, warning, error="; ".join(errors) or "the judges disagree on every criterion")
+    note = f"Judges that gave no verdict: {'; '.join(errors)}." if errors else None
+    return overall(verdicts, criteria), render_report(verdicts, criteria, label, " ".join(filter(None, [warning, note])) or None)
 
 
 def main(argv=None) -> int:
