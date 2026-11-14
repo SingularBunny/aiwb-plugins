@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-compare` 0.3.0: **Merge** ends with what stays unresolved (the disagreements and the key assumptions) and
+  what would settle it (evidence that fits one view and not the other), as in Analysis of Competing Hypotheses
+  (Heuer, Psychology of Intelligence Analysis, ch. 8); when the answers agree, the merge has no such sections.
 - `aiwb-compare` 0.2.0: **Agreement matrix** — the judge checks every pair of answers both ways for entailment, as
   semantic entropy does (Farquhar et al., Nature 2024; the authors' prompt and reading of the reply): same,
   compatible, different or contradict, and the groups of answers that say the same; method `aiwb-compare.agreement`.

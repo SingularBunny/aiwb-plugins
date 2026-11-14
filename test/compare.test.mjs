@@ -81,6 +81,7 @@ test("compare: the choice is made twice in two orders; different picks mean no a
   const split = await selectConsensus({ question: "Q?", answers: ["a", "b", "c"], complete: byPosition });
   assert.deepEqual([split.choice, split.agreed, split.picks], [null, false, [0, 2]]);
   assert.ok(mergePrompt("Q?", ["a", "b"]).includes("Answer 2:\nb"));
+  assert.match(mergePrompt("Q?", ["a", "b"]), /two short sections[\s\S]*key assumptions[\s\S]*fits one view and not the other/);
 });
 
 test("compare: agreement matrix — the semantic entropy entailment check both ways, pairs and groups", async () => {

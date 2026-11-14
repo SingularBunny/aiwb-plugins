@@ -5,7 +5,11 @@
 //   text. A judge prefers answers by position, length and its own family (Zheng et al., 2023), so the choice is made
 //   twice, the second time with the answers in reverse order; two different picks mean "no clear agreement".
 //   Merge — a synthesis of all answers (as Mixture-of-Agents and Open WebUI's Merge Responses do). It can lose a
-//   standout right answer, so it is offered separately and labelled a synthesis.
+//   standout right answer, so it is offered separately and labelled a synthesis. It ends with two sections from
+//   Analysis of Competing Hypotheses (Heuer, Psychology of Intelligence Analysis, 1999, ch. 8,
+//   https://www.cia.gov/resources/csi/static/Pyschology-of-Intelligence-Analysis.pdf): what stays unresolved — the
+//   critical assumptions the conclusion depends on (steps 6–7), and what would settle it — the evidence that is
+//   diagnostic, consistent with one view and not the other, rather than with all of them (step 3).
 
 /** The selection prompt: the answers as "Response 1…N" and the instruction to name the most consistent one. */
 export function selectionPrompt(question, answers) {
@@ -46,7 +50,7 @@ export async function selectConsensus({ question, answers, complete }) {
   return { choice: agreed ? first.pick : null, agreed, picks: [first.pick, second.pick], notes: [first.text, second.text] };
 }
 
-/** The merge prompt: one answer written from all of them, weighing them critically. */
+/** The merge prompt: one answer written from all of them, weighing them critically, then what is open and what would settle it. */
 export function mergePrompt(question, answers) {
   return [
     "Several models answered the question below. Write one answer to the question that uses what is right in them:",
@@ -55,6 +59,10 @@ export function mergePrompt(question, answers) {
     "",
     "Question:", question, "",
     ...answers.flatMap((a, i) => [`Answer ${i + 1}:`, a, ""]),
+    "End with two short sections, their headings written in the language of the question. The first: the points the",
+    "answers disagree on or leave open, and the key assumptions your answer depends on. The second: the facts, data or",
+    "checks that would tell the competing views apart — evidence that fits one view and not the other, not evidence",
+    "that fits them all. If the answers agree and nothing is open, say so in one line instead of the two sections.",
   ].join("\n");
 }
 
