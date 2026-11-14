@@ -39,3 +39,10 @@ names: config and hooks of the old `plugins.entries` entries, load paths and `pl
 node --test 'test/*.test.mjs' 'mcp/scheduled-tasks/test/*.test.mjs'
 uv run --no-project --with pytest python -m pytest tests     # judge
 ```
+
+## Before a new plugin
+
+Search ClawHub (`openclaw plugins search`, `openclaw skills search`) and OpenClaw's bundled
+`extensions/` first. A full clone or a better plugin there replaces ours (the ai-workbench installer
+installs it); with a partial overlap the better one becomes the base and gets what the other does
+better; only with nothing close is a new plugin built. See ai-workbench `CONTRIBUTING.md`.
