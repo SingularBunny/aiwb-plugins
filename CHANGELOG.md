@@ -35,6 +35,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- judge 0.1.1: requests carry their own User-Agent; Groq's Cloudflare refused Python-urllib's default with 403
+  (error code 1010), so a Groq judge gave no verdict.
 - `aiwb-office` 0.3.1: knowledge text copies name an OCR tool that is installed but does not run, with its error
   (for example a broken Python library), instead of treating OCR as not installed.
 - `aiwb-compare` 0.1.2: the manifest declares the panel and the message action it registers (`uiCapabilities`);

@@ -1,6 +1,6 @@
 {
   "name": "judge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ai-workbench judge: checks an assistant answer with a judge model from another family against binary criteria, with an honest \"not evaluated\" instead of a default PASS.",
   "author": {
     "name": "Eugene"

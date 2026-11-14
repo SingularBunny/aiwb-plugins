@@ -81,6 +81,9 @@ def settings(env: dict) -> dict:
     }
 
 
+USER_AGENT = "aiwb-judge/0.1.1"
+
+
 def make_opener(proxy: str) -> urllib.request.OpenerDirector:
     """No explicit proxy means no proxy: ProxyHandler({}) disables the environment http(s)_proxy."""
     return urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy, "https": proxy} if proxy else {}))
@@ -92,7 +95,8 @@ def call_judge(cfg: dict, messages: list[dict], opener=None) -> str:
         f"{cfg['base_url']}/chat/completions",
         data=json.dumps({"model": cfg["model"], "messages": messages, "temperature": 0,
                          "max_tokens": cfg.get("max_tokens", DEFAULT_MAX_TOKENS)}).encode(),
-        headers={"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json"},
+        # A User-Agent of our own: Groq's Cloudflare refuses Python-urllib's default (403, error code 1010).
+        headers={"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json", "User-Agent": USER_AGENT},
     )
     try:
         with opener.open(req, timeout=TIMEOUT_SECONDS) as resp:
