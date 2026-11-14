@@ -72,5 +72,14 @@
         }
       }
     }
+  },
+  "uiCapabilities": [
+    "action"
+  ],
+  "controlUi": {
+    "entry": "dist/control-ui/bridge.js",
+    "styles": [
+      "dist/control-ui/bridge.css"
+    ]
   }
 }

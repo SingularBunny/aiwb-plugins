@@ -176,6 +176,21 @@ first pass writes into every agent's memory: run the dry run, resolve or accept 
 enable it and restart the Gateway. Changes and conflicts are logged by the Gateway; set
 `AIWB_CLAUDE_BRIDGE_DEBUG=1` to log every pass.
 
+## Continue in a terminal (terminal.js)
+
+A session bound to Claude CLI continues an ordinary Claude Code conversation, so `claude --resume <id>` in its
+working folder takes it over where OpenClaw stopped, with or without OpenClaw running. The bridge adds:
+
+- **Continue in terminal** (Control UI action in the session menus, `dist/control-ui/bridge.js`): the method
+  `aiwb-claude-bridge.terminal { sessionKey }` → `{ command, sessionId, cwd, busy, chatsFile }`; the command is
+  copied and shown.
+- `~/.openclaw/workbench/claude-chats.md`: every bound chat by folder with its command, rewritten after each turn
+  and every 10 minutes (only when the list changed). Claude Code's `/resume` list hides conversations OpenClaw
+  started (`entrypoint: "sdk-cli"`) and shows the imported source chat under the same title instead.
+- While Claude Code has the conversation open in a terminal — an interactive `claude` process with its id on the
+  command line, or an interactive record (`entrypoint: "cli"`) in the last 2 minutes — the `before_agent_reply`
+  hook answers the turn itself, so the two do not write to one conversation.
+
 ## Renamed from aiwb-projects
 
 Until November 2026 the plugin was `aiwb-projects` in the `projects/` folder. The ai-workbench installer

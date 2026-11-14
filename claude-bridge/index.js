@@ -28,6 +28,7 @@ import { publishHost } from "./catalog-host.js";
 import { applyReorder, readOrder, sortRows, writeOrder } from "./order.js";
 import { isRunning, liveRunningReader, markRun, readRuns, runSetTracker } from "./running.js";
 import { isMainKey, isTreeSessionKey } from "./session-keys.js";
+import { CHATS_FILE, TERMINAL_BUSY_REPLY, boundConversation, chatsMarkdown, terminalActivity, terminalCommand, transcriptPath, writeChatsFile } from "./terminal.js";
 
 const CATALOG_ID = "projects";
 const HOST_ID = "gateway:local";
@@ -185,6 +186,52 @@ export default definePluginEntry({
     const ended = (hook) => (_event, ctx) => { log(`run ${hook} end ${ctx?.sessionKey ?? "-"}`); if (ctx?.sessionKey) mark(ctx.sessionKey, false); };
     api.on("before_model_resolve", started("before_model_resolve"));
     api.on("agent_end", ended("agent_end"));
+
+    // Claude Code in a terminal (terminal.js): the command that continues a chat there, OpenClaw turns refused
+    // while the terminal has it open, and the chats file that works without OpenClaw.
+    const claudeProjectsDir = path.resolve(expandHome(cfg.memorySync?.claudeProjectsDir || "~/.claude/projects"));
+    const terminalOf = (sessionKey) => {
+      const found = projectEntries(api.runtime.config.current()).find((e) => e.sessionKey === sessionKey);
+      const bound = found && boundConversation(found.entry);
+      if (!bound) return null;
+      const transcript = transcriptPath(claudeProjectsDir, bound.cwd, bound.sessionId);
+      return { ...bound, transcript, command: terminalCommand(bound.cwd, bound.sessionId) };
+    };
+    api.on("before_agent_reply", (_event, ctx) => {
+      const t = ctx?.sessionKey && terminalOf(ctx.sessionKey);
+      if (!t) return undefined;
+      const busy = terminalActivity({ sessionId: t.sessionId, transcript: t.transcript });
+      if (!busy.active) return undefined;
+      log(`turn refused ${ctx.sessionKey}: ${busy.why}`);
+      return { handled: true, reply: { text: TERMINAL_BUSY_REPLY(t.command) }, reason: `Claude Code terminal: ${busy.why}` };
+    }, { eligibleTriggers: ["user", "cron", "heartbeat"] });
+    const writeChats = () => {
+      try {
+        const rows = projectEntries(api.runtime.config.current()).flatMap(({ agentId, sessionKey, entry }) => {
+          const bound = entry.archivedAt === undefined && boundConversation(entry);
+          return bound ? [{ ...bound, folder: groupOf(agentId, entry) || agentId, updatedAt: entry.updatedAt,
+            title: entry.displayName || entry.label || sessionKey }] : [];
+        });
+        mkdirSync(workbenchDir(), { recursive: true });
+        writeChatsFile(path.join(workbenchDir(), CHATS_FILE), chatsMarkdown(rows));
+      } catch (e) {
+        api.logger?.warn?.(`${PLUGIN_ID}: ${CHATS_FILE} not written: ${e?.message || e}`);
+      }
+    };
+    api.on("agent_end", () => { writeChats(); });
+    // Also on start and every 10 minutes: chats renamed, archived or adopted without a turn.
+    let chatsTimer;
+    api.registerService({
+      id: `${PLUGIN_ID}-chats-file`,
+      start() { chatsTimer = setInterval(writeChats, 10 * 60 * 1000); chatsTimer.unref?.(); setTimeout(writeChats, 30 * 1000).unref?.(); },
+      stop() { clearInterval(chatsTimer); },
+    });
+    api.registerGatewayMethod(`${PLUGIN_ID}.terminal`, async ({ params, respond }) => {
+      const t = typeof params?.sessionKey === "string" ? terminalOf(params.sessionKey) : null;
+      if (!t) return respond(false, undefined, { code: "INVALID_REQUEST", message: "This chat does not continue a Claude Code conversation." });
+      respond(true, { command: t.command, sessionId: t.sessionId, cwd: t.cwd,
+        busy: terminalActivity({ sessionId: t.sessionId, transcript: t.transcript }).active, chatsFile: path.join(workbenchDir(), CHATS_FILE) });
+    }, { scope: "operator.read" });
 
     // Turn start or end → connected Control UIs re-read the catalog now. The marks file is the signal:
     // hooks and this service may live in different plugin instances.

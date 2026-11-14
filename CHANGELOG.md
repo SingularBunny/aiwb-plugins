@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-claude-bridge` 0.2.0: continue a chat in Claude Code in a terminal — "Continue in terminal" in the chat's menu
+  copies `cd <folder> && claude --resume <id>`; `~/.openclaw/workbench/claude-chats.md` lists every chat's command
+  and works without OpenClaw; OpenClaw does not run a chat's turns while a terminal has it open.
 - `judge` 0.2.0: a panel of judges — `WORKBENCH_JUDGE_PANEL` adds up to two more judge models; majority per
   criterion (PoLL, Verga et al., 2024), the third judge only when the first two disagree or one fails, a tie is not
   evaluated.
