@@ -14,7 +14,6 @@ const PANEL_ID = "multi-model";
 const M = { state: `${PLUGIN_ID}.state`, rank: `${PLUGIN_ID}.rank`, settings: `${PLUGIN_ID}.settings`,
   ask: `${PLUGIN_ID}.ask`, select: `${PLUGIN_ID}.select`, merge: `${PLUGIN_ID}.merge` };
 
-
 // Tokens and price as the provider reported them for this answer; nothing is estimated.
 function usageLabel(usage) {
   if (!usage) return "";
