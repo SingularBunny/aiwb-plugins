@@ -53,6 +53,7 @@ is `operator.admin` and beyond what a grant can reach.
 | `OPENCLAW_MEMORY_INDEX_ON_START` | flag | off | true/false |
 | `OPENCLAW_CLAUDE_CHROME` | flag | off | true/false |
 | `OPENCLAW_CLAUDE_PROMPT_SUGGESTIONS` | flag | on (off only on `0`/`false`) | true/false |
+| `OPENCLAW_MEDIA_MODEL_OVERRIDE` | flag | on (off only on `0`/`false`/`no`/`off`) | true/false |
 | `OPENCLAW_SESSION_OBSERVER_MIN_INTERVAL_MS` | int, ms | 12000 | 1000..3600000 |
 | `OPENCLAW_ACTIVITY_RECAP_MIN_INTERVAL_MS` | int, ms | 90000 | 1000..86400000 |
 | `OPENCLAW_PLUGIN_GATEWAY_METHODS` | grants | none | `<plugin id>=<method>,…;…`, exact names |

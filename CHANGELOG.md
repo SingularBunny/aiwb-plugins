@@ -10,6 +10,7 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-fork-settings` 0.4.1: `OPENCLAW_MEDIA_MODEL_OVERRIDE` — whether the agent may name the model of the image and pdf tools.
 - `judge` 0.3.0: a local verdict log (`~/.openclaw/judge/verdicts.jsonl`, `WORKBENCH_JUDGE_LOG`), `--stats` with
   the PASS rate per judge and its interval, human labels (`--to-label`, `--label`) and the share of good answers
   corrected for the judge's errors (Rogan–Gladen with the interval of Lee et al., ICML 2026; no fixed threshold).

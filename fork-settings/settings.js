@@ -58,6 +58,9 @@ export const FORK_SETTINGS = [
   { name: "OPENCLAW_ASSISTANT_MEDIA_ROOTS", kind: "folders", default: "",
     about: "extra folders (for all agents and per agent) whose files the chat previews and downloads, any type, in Full Access sessions (unset: only the session's folders; images anywhere)",
     where: "src/gateway/assistant-media-extra-roots.ts" },
+  { name: "OPENCLAW_MEDIA_MODEL_OVERRIDE", kind: "flag", default: true, onUnless: ["0", "false", "no", "off"],
+    about: "the agent may name the model of the image and pdf tools (off: the configured model answers)",
+    where: "src/agents/tools/media-tool-shared.ts" },
   { name: "OPENCLAW_PLUGIN_GATEWAY_METHODS", kind: "grants", default: "",
     about: "Gateway methods other plugins may call through api.runtime.gateway.request", where: "src/gateway/server-plugin-gateway-grants.ts" },
 ];
@@ -211,7 +214,7 @@ export function parseSetting(setting, raw) {
     const value = setting.onUnless
       ? !setting.onUnless.includes(text.toLowerCase())
       : FLAG_ON.test(text);
-    return { value, valid: !text || FLAG_KNOWN.test(text) };
+    return { value, valid: !text || FLAG_KNOWN.test(text) || Boolean(setting.onUnless?.includes(text.toLowerCase())) };
   }
   if (setting.kind === "grants") {
     const value = formatGrants(parseGrants(text));

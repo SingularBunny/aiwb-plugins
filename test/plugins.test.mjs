@@ -186,6 +186,9 @@ test("fork settings: read flags values the fork ignores or that are out of range
   // "off" is not one of the fork's off values: the fork keeps suggestions on, so the value is flagged.
   assert.deepEqual([rows.OPENCLAW_CLAUDE_PROMPT_SUGGESTIONS.value, rows.OPENCLAW_CLAUDE_PROMPT_SUGGESTIONS.invalid], [true, true]);
   assert.deepEqual([rows.OPENCLAW_CLAUDE_CHROME.value, rows.OPENCLAW_CLAUDE_CHROME.invalid], [true, undefined]);
+  // For the image and pdf model choice the fork does read "off" as off.
+  const media = effectiveSettings({ env: { OPENCLAW_MEDIA_MODEL_OVERRIDE: "off" } }).find((r) => r.name === "OPENCLAW_MEDIA_MODEL_OVERRIDE");
+  assert.deepEqual([media.value, media.invalid], [false, undefined]);
   // The fork uses 5 ms as given; it is outside the range set accepts.
   assert.deepEqual([rows.OPENCLAW_SESSION_OBSERVER_MIN_INTERVAL_MS.value, rows.OPENCLAW_SESSION_OBSERVER_MIN_INTERVAL_MS.outOfRange], [5, true]);
   assert.equal(rows.OPENCLAW_ACTIVITY_RECAP_MIN_INTERVAL_MS.value, 600_000);
