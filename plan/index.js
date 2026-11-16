@@ -2,13 +2,16 @@
 // before changing anything. While it plans, file edits are refused, exec commands and subagent starts wait for the
 // user's approval, and the exit_plan_mode tool shows the plan for approval; approving it ends plan mode.
 // Claude CLI sessions have Claude Code's own plan mode (composer picker); this one covers OpenClaw's tools only.
+// The Control UI shows it as a Plan toggle in the composer of every chat (gateway methods aiwb-plan.status and .set).
 // Requires plugins.entries.aiwb-plan.hooks.allowConversationAccess = true (the plan-mode note in the prompt).
 import os from "node:os";
 import path from "node:path";
 
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 
-import { ASK_TOOLS, EDIT_TOOLS, EXIT_TOOL, PLAN_CONTEXT, PlanSessions, planCommand, planToolDecision } from "./plan-mode.js";
+import {
+  ASK_TOOLS, EDIT_TOOLS, EXIT_TOOL, PLAN_CONTEXT, PlanSessions, planCommand, planToolDecision, registerPlanMethods,
+} from "./plan-mode.js";
 
 export default definePluginEntry({
   id: "aiwb-plan",
@@ -24,6 +27,9 @@ export default definePluginEntry({
       acceptsArgs: true,
       handler: (ctx) => ({ text: planCommand(sessions, ctx.sessionKey, ctx.args) }),
     });
+
+    // The Control UI's plan mode toggle in the composer reads and flips the same state (aiwb-plan.status, .set).
+    registerPlanMethods(api, sessions);
 
     api.on("before_prompt_build", (_event, ctx) => (sessions.has(ctx?.sessionKey) ? { prependContext: PLAN_CONTEXT } : undefined));
 

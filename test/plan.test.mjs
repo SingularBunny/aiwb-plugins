@@ -4,7 +4,9 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { EDIT_REFUSAL, EXIT_TOOL, PlanSessions, planCommand, planToolDecision } from "../plan/plan-mode.js";
+import {
+  EDIT_REFUSAL, EXIT_TOOL, METHODS, PlanSessions, planCommand, planSessionKey, planToolDecision, registerPlanMethods,
+} from "../plan/plan-mode.js";
 
 const fresh = () => path.join(mkdtempSync(path.join(os.tmpdir(), "plan-")), "workbench", "plan-mode.json");
 
@@ -53,4 +55,38 @@ test("plan: approving the plan ends plan mode; declining keeps it; an empty plan
 test("plan: the manifest declares exit_plan_mode, or the Gateway refuses to register it", () => {
   const manifest = JSON.parse(readFileSync(new URL("../plan/openclaw.plugin.json", import.meta.url), "utf8"));
   assert.deepEqual(manifest.contracts?.tools, [EXIT_TOOL]);
+});
+
+test("plan: the Control UI toggle reads and flips the same state as /plan, under either key form", async () => {
+  const sessions = new PlanSessions(fresh());
+  const methods = new Map();
+  registerPlanMethods({ registerGatewayMethod: (name, handler, opts) => methods.set(name, { handler, opts }) }, sessions);
+  assert.equal(methods.get(METHODS.status).opts.scope, "operator.read");
+  assert.equal(methods.get(METHODS.set).opts.scope, "operator.write");
+  const call = async (name, params) => {
+    let answer;
+    await methods.get(name).handler({ params, respond: (...args) => { answer = args; } });
+    return answer;
+  };
+  assert.deepEqual((await call(METHODS.status, { sessionKey: "agent:main:chat" }))[1], { on: false, since: null });
+  const set = await call(METHODS.set, { sessionKey: "agent:main:chat", on: true });
+  assert.equal(set[0], true);
+  assert.equal(set[1].on, true);
+  assert.ok(sessions.has("agent:main:chat"));
+  assert.equal(planCommand(sessions, "agent:main:chat", "status"), "Plan mode is on.");
+  assert.equal((await call(METHODS.status, { sessionKey: "chat", agentId: "main" }))[1].on, true);
+  planCommand(sessions, "agent:main:chat", "off");
+  assert.equal((await call(METHODS.status, { sessionKey: "agent:main:chat" }))[1].on, false);
+  assert.equal((await call(METHODS.set, { sessionKey: "agent:main:chat" }))[0], false);
+  assert.equal((await call(METHODS.set, { sessionKey: "agent:main:chat", on: "yes" }))[0], false);
+  assert.equal((await call(METHODS.status, {}))[0], false);
+  assert.equal((await call(METHODS.status, { sessionKey: "agent:main:chat", extra: 1 }))[0], false);
+});
+
+test("plan: the short key forms name the chat the command sees", () => {
+  assert.equal(planSessionKey("main"), "agent:main:main");
+  assert.equal(planSessionKey("main", "Work"), "agent:work:main");
+  assert.equal(planSessionKey("dashboard:abc", "main"), "agent:main:dashboard:abc");
+  assert.equal(planSessionKey("agent:Main:dashboard:abc"), "agent:main:dashboard:abc");
+  assert.equal(planSessionKey("  "), undefined);
 });

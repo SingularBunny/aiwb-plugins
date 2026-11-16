@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-plan` 0.2.0: gateway methods `aiwb-plan.status` and `aiwb-plan.set` — the same switch as `/plan` and
+  `/plan off`, for the Plan toggle in the Control UI composer of the ai-workbench OpenClaw fork; a short session key
+  (`main`, or one without the agent part) reaches the same chat as the command.
 - `aiwb-fork-settings` 0.4.1: `OPENCLAW_MEDIA_MODEL_OVERRIDE` — whether the agent may name the model of the image and pdf tools.
 - `judge` 0.3.0: a local verdict log (`~/.openclaw/judge/verdicts.jsonl`, `WORKBENCH_JUDGE_LOG`), `--stats` with
   the PASS rate per judge and its interval, human labels (`--to-label`, `--label`) and the share of good answers

@@ -50,6 +50,54 @@ export class PlanSessions {
   }
 }
 
+export const METHODS = { status: "aiwb-plan.status", set: "aiwb-plan.set" };
+
+/**
+ * The store key of a chat as the command and the hooks see it (`agent:<agent>:<rest>`). The Control UI may send
+ * the short form (`main`, or a key without the agent part), so both forms reach the same chat.
+ */
+export function planSessionKey(sessionKey, agentId) {
+  const raw = typeof sessionKey === "string" ? sessionKey.trim() : "";
+  if (!raw) return undefined;
+  const agent = (typeof agentId === "string" && agentId.trim() ? agentId.trim() : "main").toLowerCase();
+  if (/^agent:[^:]+:/iu.test(raw)) return raw.replace(/^agent:([^:]+):/iu, (_m, id) => `agent:${id.toLowerCase()}:`);
+  return `agent:${agent}:${raw.toLowerCase() === "main" ? "main" : raw}`;
+}
+
+/** The answer of `aiwb-plan.status` and `aiwb-plan.set`: whether the chat plans, and since when. */
+export function planState(sessions, sessionKey) {
+  const entry = sessionKey ? sessions.sessions.get(sessionKey) : undefined;
+  return entry ? { on: true, since: entry.since ?? null } : { on: false, since: null };
+}
+
+const invalid = (message) => [false, undefined, { code: "INVALID_REQUEST", message }];
+
+/**
+ * Gateway methods behind the Control UI's plan mode toggle (the same switch as `/plan` and `/plan off`):
+ *   aiwb-plan.status { sessionKey, agentId? } → { on, since }
+ *   aiwb-plan.set    { sessionKey, agentId?, on } → { on, since }
+ */
+export function registerPlanMethods(api, sessions) {
+  const read = (params, extra = []) => {
+    const unknown = Object.keys(params ?? {}).filter((key) => !["sessionKey", "agentId", ...extra].includes(key));
+    if (unknown.length > 0) return undefined;
+    return planSessionKey(params?.sessionKey, params?.agentId);
+  };
+  api.registerGatewayMethod(METHODS.status, async ({ params, respond }) => {
+    const key = read(params);
+    if (!key) return respond(...invalid(`${METHODS.status} takes { sessionKey, agentId? }`));
+    respond(true, planState(sessions, key), undefined);
+  }, { scope: "operator.read" });
+  api.registerGatewayMethod(METHODS.set, async ({ params, respond }) => {
+    const key = read(params, ["on"]);
+    if (!key || typeof params?.on !== "boolean") {
+      return respond(...invalid(`${METHODS.set} takes { sessionKey, agentId?, on: boolean }`));
+    }
+    sessions.set(key, params.on);
+    respond(true, planState(sessions, key), undefined);
+  }, { scope: "operator.write" });
+}
+
 /** `/plan [on|off|status]`: the reply text; toggles the chat's plan mode. */
 export function planCommand(sessions, sessionKey, args) {
   if (!sessionKey) return "Plan mode works in a chat session only.";
