@@ -2,3 +2,4 @@
 .aiwb-bridge-terminal__command { padding: 0.5rem 0.75rem; overflow-x: auto; white-space: pre; user-select: all;
   background: var(--bg-muted, rgba(127, 127, 127, 0.12)); border-radius: 6px; }
 .aiwb-bridge-terminal .btn { justify-self: end; }
+.aiwb-bridge-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }

@@ -20,6 +20,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { carryOf } from "./rehome.js";
 import { isCronKey, isMainKey } from "./session-keys.js";
 
 const IMPORT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -99,8 +100,9 @@ export async function moveChat({ row, source, group, claudeChat, request, bind, 
     throw e;
   }
 
-  // 3. Continue it in the target folder.
-  const bound = await bind({ agentId, sessionKey, threadId: copyId, sourceThreadId: chatId, cwd });
+  // 3. Continue it in the target folder, with the source session's title, pin and read state.
+  const carry = carryOf(source?.entry);
+  const bound = await bind({ agentId, sessionKey, threadId: copyId, sourceThreadId: chatId, cwd, ...(Object.keys(carry).length ? { carry } : {}) });
   if (bound.archived) {
     await request("sessions.patch", { key: sessionKey, expectedSessionId: bound.sessionId, archived: false })
       .catch((e) => log(`unarchive ${sessionKey}: ${e?.message || e}`));

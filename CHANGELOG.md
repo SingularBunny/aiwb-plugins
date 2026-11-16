@@ -10,6 +10,13 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-claude-bridge` 0.3.0: a chat adopted by the default agent before its folder had an agent moves to that
+  agent once it exists, if nobody has written in it since adoption (no turn traces in the session entry, the Claude
+  CLI binding unchanged); a chat used in the meantime stays and gets **Move to project <folder>…** in its menu
+  (Control UI, with a confirmation; the drag-and-drop move). Both keep the title, pin and read state; the old
+  session is archived and adoption does not import the chat again. Method `aiwb-claude-bridge.rehome.offers`.
+  Moves between folders now also carry the title, pin and read state, and are refused while the target folder's
+  agent does not exist.
 - `aiwb-plan` 0.2.0: gateway methods `aiwb-plan.status` and `aiwb-plan.set` — the same switch as `/plan` and
   `/plan off`, for the Plan toggle in the Control UI composer of the ai-workbench OpenClaw fork; a short session key
   (`main`, or one without the agent part) reaches the same chat as the command.

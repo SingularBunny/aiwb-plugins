@@ -12,7 +12,8 @@
 //   claudeProjectsDir } } — the agent for folders without a project, the folder for that agent's new
 //   sessions, adoption of old chats in the Gateway (default on), and the one-way copy of Claude Code
 //   memory into the agents' memory (memory-sync.js, README.md). Chats move between project folders by
-//   drag-and-drop (move.js; OpenClaw fork: sessions.catalog.move).
+//   drag-and-drop (move.js; OpenClaw fork: sessions.catalog.move). A chat adopted by the default agent
+//   before its folder had an agent moves there when it gets one (rehome.js).
 import { existsSync, mkdirSync, readdirSync, readFileSync, watch } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,9 +22,10 @@ import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { listSessionCatalogEntries } from "openclaw/plugin-sdk/session-catalog";
 
 import { adoptOnce, missingGrants, serialRunner } from "./adopt.js";
-import { LEGACY_ID, PLUGIN_ID, migrateStateFile, stateFile } from "./legacy.js";
+import { PLUGIN_ID, migrateStateFile, stateFile } from "./legacy.js";
 import { INDEX_FILE, formatReport, indexForPrompt, projectAgents, syncOnce, syncSettings } from "./memory-sync.js";
 import { moveChat } from "./move.js";
+import { configuredAgents, rehomeOnce, rehomePlan, sourceMark } from "./rehome.js";
 import { publishHost } from "./catalog-host.js";
 import { applyReorder, readOrder, sortRows, writeOrder } from "./order.js";
 import { isRunning, liveRunningReader, markRun, readRuns, runSetTracker } from "./running.js";
@@ -108,8 +110,6 @@ function transcriptItems(file) {
   return items;
 }
 
-/** Source chat mark of an adopted session; sessions adopted before the rename carry it under the old id. */
-const sourceMark = (entry) => entry?.pluginExtensions?.[PLUGIN_ID]?.sourceThreadId ?? entry?.pluginExtensions?.[LEGACY_ID]?.sourceThreadId;
 /** Claude Code chats bound to an OpenClaw session: its Claude CLI session and, for one adopted
  *  from the Claude catalog, the source chat. */
 const boundChats = (entry) => [entry?.cliSessionBindings?.["claude-cli"]?.sessionId,
@@ -401,8 +401,10 @@ export default definePluginEntry({
         // claude-code-catalog.mjs; only the Claude catalog creates Claude CLI sessions); here we just
         // find the adopted session.
         const config = api.runtime.config.current();
+        // A live session first: a chat moved to another agent leaves its old session in the archive.
         const found = projectEntries(config)
-          .find((e) => groupOfAgent.has(e.agentId) && boundChats(e.entry).includes(params.threadId));
+          .filter((e) => groupOfAgent.has(e.agentId) && boundChats(e.entry).includes(params.threadId))
+          .sort((a, b) => (a.entry.archivedAt !== undefined) - (b.entry.archivedAt !== undefined))[0];
         if (!found) throw new Error("Chat is not adopted by the project agent yet — it will be within minutes (or run migrate/claude-desktop/claude-code-catalog.mjs)");
         return { sessionKey: found.sessionKey };
       },
@@ -430,6 +432,9 @@ export default definePluginEntry({
       if (blocker) throw Object.assign(new Error(`moving chats needs adoption in the Gateway: ${blocker}`), { code: "UNAVAILABLE" });
       return await passes.run(async () => {
         const config = api.runtime.config.current();
+        if (Object.hasOwn(projects, group) && !configuredAgents(config).has(agentOf(group).toLowerCase())) {
+          throw Object.assign(new Error(`the agent ${agentOf(group)} of ${group} does not exist yet`), { code: "INVALID_REQUEST" });
+        }
         let row, source;
         if (threadId.startsWith(SESSION_ROW)) {
           const sessionKey = threadId.slice(SESSION_ROW.length);
@@ -446,7 +451,7 @@ export default definePluginEntry({
         const moved = await moveChat({
           row, source, group, claudeChat, bind: (p) => bindChat({ ...p, rebind: true, fork: false }),
           request: (method, params, options) => api.runtime.gateway.request(method, params, options),
-          transcriptFile, folderCwd: (folder) => folderCwd(config, folder), agentOf, projectsDir: claudeProjectsDir(),
+          transcriptFile, folderCwd: (folder) => folderCwd(config, folder), agentOf, projectsDir: claudeProjectsDir,
           running: await runningNow(),
           registryFile: adoptedFile(), log, warn: (m) => api.logger?.warn?.(`${PLUGIN_ID} ${m}`),
         });
@@ -480,7 +485,8 @@ export default definePluginEntry({
     // A move binds to the conversation the chat continues (threadId) and keeps the tree chat it came
     // from (sourceThreadId) as the mark; it always rewrites the binding (rebind): the folder changes.
     // A moved chat continues its own copy of the conversation, so its first turn need not fork (fork: false).
-    const bindChat = async ({ agentId, sessionKey, threadId, cwd, sourceThreadId = threadId, rebind = false, fork = true } = {}) => {
+    // A move also carries the title, pin and read state of the chat's old session (carry, rehome.js).
+    const bindChat = async ({ agentId, sessionKey, threadId, cwd, sourceThreadId = threadId, rebind = false, fork = true, carry = {} } = {}) => {
       if (!groupOfAgent.has(agentId) || typeof sessionKey !== "string" || !sessionKey.startsWith(`agent:${agentId}:catalog-import:`)
         || !/^[A-Za-z0-9._-]+$/.test(threadId || "") || !/^[A-Za-z0-9._-]+$/.test(sourceThreadId || "")
         || typeof cwd !== "string" || !path.isAbsolute(cwd)) {
@@ -492,6 +498,7 @@ export default definePluginEntry({
           cliSessionBindings: { ...e.cliSessionBindings, "claude-cli": { sessionId: threadId, forceReuse: true, forkNextResume: fork } },
           spawnedCwd: cwd,
           pluginExtensions: { ...e.pluginExtensions, [PLUGIN_ID]: { sourceThreadId } },
+          ...carry,
         }),
       }) ?? await api.runtime.agent.session.getSessionEntryAsync({ agentId, sessionKey });
       if (!entry) throw Object.assign(new Error(`no session ${sessionKey}`), { code: "NOT_FOUND" });
@@ -541,6 +548,48 @@ export default definePluginEntry({
       }
     };
 
+    // Chats the default agent adopted before their folder had an agent (rehome.js): untouched ones move in
+    // the adoption pass, the rest are offered in the chat menu (Control UI, sessions.catalog.move).
+    const planRehome = (config, running) => rehomePlan({
+      entries: projectEntries(config), defaultAgent, projects, running,
+      agentExists: (id) => configuredAgents(config).has(String(id).toLowerCase()),
+    });
+    // Archive or restore in the agent's session store. The Gateway's sessions.patch lets a plugin patch only
+    // sessions it created, and a catalog import is not one (no pluginOwnerId); the archive marks are the ones
+    // the Gateway writes for a manual archive. Only for idle sessions (rehome.js checks it in the same write).
+    const setArchived = async ({ agentId, sessionKey, archived, expect = () => {} }) => {
+      const entry = await api.runtime.agent.session.patchSessionEntry({
+        agentId, sessionKey,
+        update: (e) => {
+          expect(e);
+          if (archived) return e.archivedAt !== undefined ? null : { archivedAt: Date.now(), archiveReason: "manual" };
+          return e.archivedAt === undefined ? null : { archivedAt: undefined, archivedBy: undefined, archiveReason: undefined };
+        },
+      }) ?? await api.runtime.agent.session.getSessionEntryAsync({ agentId, sessionKey });
+      if (!entry) throw Object.assign(new Error(`no session ${sessionKey}`), { code: "NOT_FOUND" });
+      if ((entry.archivedAt !== undefined) !== archived) throw new Error(`${sessionKey} was not ${archived ? "archived" : "restored"}`);
+    };
+    const rehomePass = async () => rehomeOnce({
+      plan: planRehome(api.runtime.config.current(), await runningNow()),
+      request: (method, params, options) => api.runtime.gateway.request(method, params, options),
+      bind: (p) => bindChat({ ...p, rebind: true }), setArchived, registryFile: adoptedFile(), relatedOf: boundChats, log,
+    });
+    const reportRehome = (result) => {
+      for (const m of result.moved) api.logger?.info?.(`${PLUGIN_ID} moved untouched chat ${m.from} to its folder's agent: ${m.sessionKey}`);
+      if (result.failed) {
+        api.logger?.warn?.(`${PLUGIN_ID} untouched chats left with the default agent: ${result.failed}`
+          + result.errors.map((e) => `\n  ✗ ${e}`).join(""));
+      }
+    };
+    api.registerGatewayMethod(`${PLUGIN_ID}.rehome.offers`, async ({ respond }) => {
+      try {
+        const { offers } = planRehome(api.runtime.config.current());
+        respond(true, { offers: offers.map(({ sessionKey, folder, targetAgentId, untouched }) => ({ sessionKey, folder, agentId: targetAgentId, untouched })) }, undefined);
+      } catch (e) {
+        respond(false, undefined, { code: "UNAVAILABLE", message: e?.message || String(e) });
+      }
+    }, { scope: "operator.read" });
+
     // Whether adoption runs here: claude-code-catalog.mjs then leaves it to the plugin.
     api.registerGatewayMethod(`${PLUGIN_ID}.adoption`, async ({ respond }) => {
       const blocker = await adoptionBlocker();
@@ -563,7 +612,7 @@ export default definePluginEntry({
     }, { scope: "operator.admin" });
 
     if (adoptionOn) {
-      let adoptTimer, startTimer, debounce, treeWatcher, stopped = false, warned = false;
+      let adoptTimer, startTimer, debounce, treeWatcher, gatewayEvents, stopped = false, warned = false;
       const pass = () => passes.request(async () => {
         if (stopped) return;
         const blocker = await adoptionBlocker();
@@ -574,11 +623,18 @@ export default definePluginEntry({
         }
         warned = false;
         report(await adoptPass());
+        const rehomed = await rehomePass();
+        reportRehome(rehomed);
+        // Connected Control UIs re-read the tree and the chat menus.
+        if (rehomed.moved.length) {
+          try { gatewayEvents?.emit("session-catalog-changed", {}, { scope: "operator.read" }); } catch { /* service stopped */ }
+        }
       }).catch((e) => api.logger?.warn?.(`${PLUGIN_ID} adoption by agents failed: ${e?.message || e}`));
       api.registerService({
         id: `${PLUGIN_ID}-adoption`,
-        start() {
+        start(ctx) {
           stopped = false;
+          gatewayEvents = ctx?.gatewayEvents;
           startTimer = setTimeout(pass, ADOPT_START_MS);
           adoptTimer = setInterval(pass, ADOPT_MS);
           try {

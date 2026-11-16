@@ -62,6 +62,7 @@ deleted or archived in OpenClaw does not come back by itself.
 | `aiwb-claude-bridge.readopt` | admin | `{ chats: ["<id, id prefix or title>", …] }`: clear the registry mark and adopt now; returns `adopted`, `failed`, `errors`, `readopt` (ids), `unknown` |
 | `aiwb-claude-bridge.adopted` | read | chats bound to project agent sessions (for the script) |
 | `aiwb-claude-bridge.bind` | admin | bind an import session to its Claude Code chat (for the script) |
+| `aiwb-claude-bridge.rehome.offers` | read | `{ offers: [{ sessionKey, folder, agentId, untouched }] }`: default-agent chats whose folder now has an agent (the "Move to project" menu item) |
 
 Imports and errors are logged by the Gateway (`aiwb-claude-bridge adoption by agents: …`); a missing
 grant is logged once.
@@ -91,7 +92,8 @@ folder of its working folder, so a move is an adoption into the target agent:
    `claude`); if the import fails, the copy is removed;
 3. the import session is bound to the copy in the target folder (`<memorySync.root>/<folder>`, or the agent's
    `cwd` when that is the folder) and keeps the tree chat as its source mark; the next turn continues the
-   copy itself (no fork, unlike adoption: the copy belongs to this session alone);
+   copy itself (no fork, unlike adoption: the copy belongs to this session alone). It takes over the source
+   session's title set in OpenClaw (`label`), pin (`pinnedAt`) and read state (`lastReadAt`, `markedUnreadAt`);
 4. the session in the source agent is archived (not deleted) by the Gateway, as the operator who moved the
    chat (the move result names it; a plugin may patch only sessions it created); if that fails, the move
    stands and the sidebar shows a warning to archive it by hand. The chat and every
@@ -103,7 +105,33 @@ project's main chat (`agent:<id>:main`), an automation (it runs in its job's age
 a chat without a Claude Code transcript. Moves run between adoption passes and need the same Gateway grant
 (`sessions.catalog.import`, `sessions.patch`, `session.visibility.set`); without it the move is refused
 with the reason. Claude Desktop's own files are not changed: Claude Desktop keeps showing the chat in its
-old project.
+old project. The target folder's agent must exist (`agents.entries`/`agents.list`).
+
+**A folder that gets its agent later** (`rehome.js`). A chat adopted while its folder had no agent (the folder
+was not in `projects`, or its agent was not created yet) goes to `defaultAgent` and stays there: the registry
+keeps it from being adopted again. Once `projects[<folder>]` names an agent that exists, every adoption pass
+looks at the default agent's adopted sessions (`agent:<default>:catalog-import:*` with the plugin's source mark,
+not archived, no turn in progress) whose folder (`spawnedCwd`) is that project's:
+
+- **untouched** — nobody has written in it since adoption — it moves by itself: the default agent's session is
+  archived, the same Claude Code chat is imported into the folder's agent with full history and bound as adoption
+  binds it, with the old session's title, pin and read state; it is made shared, and the registry records the chat
+  under the new session. If the import or binding fails, the old session is restored. The archive is written in
+  the agent's session store through the plugin runtime (`archivedAt`, `archiveReason: "manual"`), in the same
+  write that checks again that the session is still untouched: the Gateway's `sessions.patch` lets a plugin patch
+  only sessions it created, and a catalog import is not one. "Restore" in OpenClaw brings the old session back;
+- **used** — it stays with the default agent. The Control UI shows **Move to project &lt;folder&gt;…**
+  («Перенести в проект …» in Russian) in its menu (sidebar row and chat header, `dist/control-ui/bridge.js`);
+  after a confirmation it calls `sessions.catalog.move` for the row, which is the drag-and-drop move above, with
+  the turns made in the default agent. The menu item lists come from `aiwb-claude-bridge.rehome.offers` and are
+  read again when sessions or the tree change.
+
+Untouched is read from the session entry: none of the turn traces OpenClaw writes there — `lastInteractionAt`
+(a user or channel message), `sessionStartedAt` and `systemSent` (a turn started), `lastRunId`, `lastActivityAt`
+(a completed run), `previousSessionId` (`/new`, `/reset`) — and the `claude-cli` binding still points at the
+adopted chat itself (the first Claude CLI turn moves it to its fork). Import, rename, pin, read, share, archive
+and the activity summary write none of them. Archived and deleted sessions are never moved: an archived one
+stays archived, a deleted one stays in the registry.
 
 **Archive and delete.** A session row (an agent session, new or adopted) is managed as in OpenClaw's own
 list: in a folder of the agent that is open, the row has the regular session menu (archive with Undo,
@@ -181,7 +209,8 @@ enable it and restart the Gateway. Changes and conflicts are logged by the Gatew
 A session bound to Claude CLI continues an ordinary Claude Code conversation, so `claude --resume <id>` in its
 working folder takes it over where OpenClaw stopped, with or without OpenClaw running. The bridge adds:
 
-- **Continue in terminal** (Control UI action in the session menus, `dist/control-ui/bridge.js`): the method
+- **Continue in terminal** (Control UI action in the session menus, `dist/control-ui/bridge.js`; the same file adds
+  "Move to project", see above): the method
   `aiwb-claude-bridge.terminal { sessionKey }` → `{ command, sessionId, cwd, busy, chatsFile }`; the command is
   copied and shown. The folder is the session's `spawnedCwd` (imported chats) or, for chats started in OpenClaw,
   the `cwd` recorded in the conversation file.
