@@ -10,6 +10,18 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-groups` 0.2.0: group chats in ordinary chats, for the Control UI of the ai-workbench OpenClaw fork. **Add to
+  group chat** (in the chat header and the **Hand off…** menu) adds an OpenClaw agent, an ACP agent (as in
+  `acp.allowedAgents`, e.g. Junie) or any model to the chat as a separate participant; the chat's own model or bound
+  agent keeps answering as before. A message that names a member (`@Junie …`, or the **Ask Junie** chip by the
+  composer) is answered by that member with a full turn of its own: an OpenClaw agent in its own session for the chat,
+  a model as the chat's agent on that model, an ACP agent in its own persistent ACP session. It gets who is in the chat
+  and what was said since its last turn; its reply is written into the chat with its author (the agent's or model's
+  name and avatar, Retry under a failed turn, the refusal hint), and the chat's own model reads it as shared history
+  with a one-line note. Gateway methods `aiwb-groups.chat.get|add|remove|ask|stop`; members in
+  `~/.openclaw/workbench/groups/chats/`. A model member runs as a model override, which OpenClaw allows for an
+  operator with admin scope (the owner's Control UI) or with `plugins.entries.aiwb-groups.subagent.allowModelOverride`.
+  ACP members need the fork's `agent_end` for ACP turns (`aiwb/group-chat`).
 - `aiwb-claude-bridge` 0.3.0: a chat adopted by the default agent before its folder had an agent moves to that
   agent once it exists, if nobody has written in it since adoption (no turn traces in the session entry, the Claude
   CLI binding unchanged); a chat used in the meantime stays and gets **Move to project <folder>…** in its menu
