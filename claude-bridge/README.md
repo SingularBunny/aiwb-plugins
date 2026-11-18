@@ -29,7 +29,10 @@ folder (`projects[<folder>]`, else `defaultAgent`): a Claude catalog import with
 (`sessions.catalog.import`; a catalog "continue" carries only the last 200 records), then binding to the
 Claude Code chat itself, so it continues in the same Claude CLI chat (the first turn forks, the source
 file is unchanged). An archived import session from an earlier adoption is restored, and the session is
-made shared (the import creates a draft). Claude CLI is not launched.
+made shared (the import creates a draft). Claude CLI is not launched. Right after an import the Gateway may not
+have the session's storage ready ("retry after session storage is ready"): the share is retried after 0.5, 1, 2,
+4 and 8 s, and a session still a draft goes to `<OpenClaw state>/workbench/aiwb-claude-bridge-pending-share.json`,
+retried on every adoption pass (`visibility.js`).
 
 **Where.** In the Gateway (`adopt.js`, service `aiwb-claude-bridge-adoption`): 30 seconds after start,
 every 10 minutes, and 5 seconds after the tree metadata changes; passes never overlap. The plugin calls
@@ -94,9 +97,13 @@ folder of its working folder, so a move is an adoption into the target agent:
    `cwd` when that is the folder) and keeps the tree chat as its source mark; the next turn continues the
    copy itself (no fork, unlike adoption: the copy belongs to this session alone). It takes over the source
    session's title set in OpenClaw (`label`), pin (`pinnedAt`) and read state (`lastReadAt`, `markedUnreadAt`);
-4. the session in the source agent is archived (not deleted) by the Gateway, as the operator who moved the
-   chat (the move result names it; a plugin may patch only sessions it created); if that fails, the move
-   stands and the sidebar shows a warning to archive it by hand. The chat and every
+4. the import session is made shared, retried with backoff as in adoption; only then the session in the source
+   agent is archived (not deleted) by the Gateway, as the operator who moved the chat (the move result names
+   it; a plugin may patch only sessions it created); if that fails, the move stands and the sidebar shows a
+   warning to archive it by hand. If the new session is still a draft, the source is not archived and the move
+   result carries a warning: the new session waits in the pending list, and the adoption pass that shares it
+   archives the source in its agent's session store, unless it is answering (next pass), is another session
+   now, or was written in after the move (then it is kept, with a warning in the log). The chat and every
    chat bound to that session are recorded in the adoption registry under the new session, so neither
    the tree nor adoption brings them back to the old folder.
 

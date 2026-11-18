@@ -76,6 +76,11 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-claude-bridge` 0.3.1: a chat moved to another project no longer stays a hidden draft next to its old copy.
+  Sharing an imported session (`session.visibility.set`) right after the import is retried with backoff (0.5 to
+  8 s) while the Gateway says the session storage is not ready; a session still a draft is kept in a pending list
+  and shared on the next adoption pass. A move archives the old chat only once the new one is shared — otherwise
+  it reports that and archives the old chat on the pass that shares the new one. Adoption shares the same way.
 - `aiwb-claude-bridge` 0.2.1: "Continue in terminal", the terminal lock and the chats file also cover chats started in
   OpenClaw — they have no `spawnedCwd`, and the folder is read from the conversation file.
 - `aiwb-compare` 0.1.3: each answer shows the tokens and price the provider reported (`free` for $0), next to its time.
