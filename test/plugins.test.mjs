@@ -763,21 +763,49 @@ test("claude bridge move: chat goes to the target agent with history, source arc
     await assert.rejects(moveChat({ ...base, newId: () => "copy-bad", row, source: session }), /unavailable/);
     assert.ok(!fs.existsSync(path.join(claudeProjectDir(projectsDir, beta), "copy-bad.jsonl")));
     assert.ok(!calls.some(([m]) => m === "sessions.patch"));
-    // A failed share is retried, then reported: the moved chat must not silently stay a draft (ghost).
-    for (const failures of [2, 5]) {
-      let shareCalls = 0;
-      const warnings = [];
-      const flaky = async (method, params) => {
-        if (method === "session.visibility.set" && ++shareCalls <= failures) throw new Error("busy");
+    // The share right after the import may find the session storage not ready: retried with backoff, and the
+    // source is archived only once the new chat is shared.
+    const NOT_READY = "Session access facts are unavailable; retry after session storage is ready.";
+    const pendingFile = path.join(dir, "workbench", "pending-share.json");
+    const flakyShare = (failures, message) => {
+      const state = { shares: 0, sleeps: [], warnings: [] };
+      state.request = async (method, params) => {
+        if (method === "session.visibility.set" && ++state.shares <= failures) throw new Error(message);
         return request(method, params);
       };
-      const done = await moveChat({ ...base, request: flaky, newId: () => `copy-share-${failures}`, row, source: session,
-        warn: (m) => warnings.push(m) });
-      assert.equal(done.sessionKey, `agent:beta:catalog-import:copy-share-${failures}`);
-      assert.equal(shareCalls, Math.min(failures + 1, 3));
-      assert.equal(warnings.length, failures >= 3 ? 1 : 0);
-      if (warnings.length) assert.match(warnings[0], /stays a draft.*failed 3 times: busy/);
-    }
+      return state;
+    };
+    const late = flakyShare(2, NOT_READY);
+    const done = await moveChat({ ...base, request: late.request, newId: () => "copy-share-late", row, source: session, pendingFile,
+      sleep: async (ms) => late.sleeps.push(ms), warn: (m) => late.warnings.push(m) });
+    assert.equal(late.shares, 3);
+    assert.deepEqual(late.sleeps, [500, 1000]);
+    assert.deepEqual(done.archive, { key: session.sessionKey, expectedSessionId: "old-id" });
+    assert.equal(done.warning, undefined);
+    assert.deepEqual(late.warnings, []);
+    assert.ok(!fs.existsSync(pendingFile));
+    // Still not ready after the whole backoff: the source is not archived, the user is told, and the new chat
+    // waits in the pending list with the source's archive.
+    const never = flakyShare(Infinity, NOT_READY);
+    const draft = await moveChat({ ...base, request: never.request, newId: () => "copy-share-never", row, source: session, pendingFile,
+      now: () => 1234, sleep: async (ms) => never.sleeps.push(ms), warn: (m) => never.warnings.push(m) });
+    assert.equal(never.shares, 6);
+    assert.deepEqual(never.sleeps, [500, 1000, 2000, 4000, 8000]);
+    assert.equal(draft.archive, undefined);
+    assert.match(draft.warning, /still a draft.*old chat stays/);
+    assert.match(never.warnings[0], /not shared yet.*failed 6 times.*archived after that/);
+    assert.deepEqual(JSON.parse(fs.readFileSync(pendingFile, "utf8"))[draft.sessionKey], { agentId: "beta", since: 1234, error: NOT_READY,
+      archive: { agentId: "alpha", key: session.sessionKey, expectedSessionId: "old-id", movedAt: 1234 } });
+    // Not retryable: one attempt, the source kept, nothing pending.
+    fs.rmSync(pendingFile);
+    const denied = flakyShare(Infinity, "forbidden");
+    const kept = await moveChat({ ...base, request: denied.request, newId: () => "copy-share-denied", row, source: session, pendingFile,
+      sleep: async (ms) => denied.sleeps.push(ms), warn: (m) => denied.warnings.push(m) });
+    assert.equal(denied.shares, 1);
+    assert.equal(kept.archive, undefined);
+    assert.match(kept.warning, /stays a draft \(forbidden\); the old chat is kept/);
+    assert.match(denied.warnings[0], /stays a draft.*failed 1 times: forbidden; the source chat .* is kept/);
+    assert.ok(!fs.existsSync(pendingFile));
     // An existing file is never overwritten.
     assert.throws(() => copyConversation(src, path.join(claudeProjectDir(projectsDir, beta), "copy-1.jsonl"), "fork-1", "copy-1"));
 
@@ -793,6 +821,81 @@ test("claude bridge move: chat goes to the target agent with history, source arc
     await refuse({ claudeChat: () => ({}) }, /no Claude Code conversation/);
     await assert.rejects(moveChat({ ...base, row: undefined }), /no such chat/);
     assert.equal(calls.length, 0);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("claude bridge drafts: adoption backs off once per pass, pending sessions are shared and moved sources archived later", async () => {
+  const { adoptOnce } = await import("../claude-bridge/adopt.js");
+  const { isRetryable, readPending, retryPending, addPending } = await import("../claude-bridge/visibility.js");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aiwb-drafts-"));
+  const NOT_READY = "Session access facts are unavailable; retry after session storage is ready.";
+  try {
+    assert.ok(isRetryable(new Error(NOT_READY)));
+    assert.ok(isRetryable(Object.assign(new Error("x"), { code: "UNAVAILABLE" })));
+    assert.ok(!isRetryable(new Error("forbidden")));
+
+    const registryFile = path.join(dir, "workbench", "adopted.json"), pendingFile = path.join(dir, "workbench", "pending-share.json");
+    let ready = false;
+    const calls = [];
+    const request = async (method, params) => {
+      calls.push([method, params]);
+      if (method === "sessions.catalog.list") {
+        return { catalogs: [{ hosts: [{ sessions: [{ threadId: "c1", customGroup: "Alpha", name: "Plan", cwd: "/d/Alpha" },
+          { threadId: "c2", customGroup: "Alpha", name: "Notes", cwd: "/d/Alpha" }] }] }] };
+      }
+      if (method === "sessions.catalog.import") return { sessionKey: `agent:alpha:catalog-import:${params.threadId}` };
+      if (method === "session.visibility.set" && !ready) throw new Error(NOT_READY);
+      return {};
+    };
+    const sleeps = [];
+    const pass = await adoptOnce({ request, bind: async (p) => ({ sessionKey: p.sessionKey, sessionId: "s", archived: false }),
+      adoptedChats: () => [], treeChats: () => [], registryFile, pendingFile, projects: { Alpha: "alpha" },
+      sleep: async (ms) => sleeps.push(ms) });
+    // Adopted, but drafts: the full backoff once, then one attempt for the next chat; both wait in the list.
+    assert.deepEqual([pass.adopted, pass.drafts], [2, 2]);
+    assert.deepEqual(sleeps, [500, 1000, 2000, 4000, 8000]);
+    assert.equal(calls.filter(([m]) => m === "session.visibility.set").length, 7);
+    assert.deepEqual(Object.keys(readPending(pendingFile)).sort(), ["agent:alpha:catalog-import:c1", "agent:alpha:catalog-import:c2"]);
+
+    // A moved chat waits with its source's archive.
+    const moved = "agent:beta:catalog-import:m1", src = { agentId: "alpha", key: "agent:alpha:catalog-import:m0", expectedSessionId: "old", movedAt: 5 };
+    addPending(pendingFile, { sessionKey: moved, agentId: "beta", error: NOT_READY, archive: src });
+    const archived = [];
+    let archiveError;
+    const archive = async (a) => { if (archiveError) throw archiveError; archived.push(a); };
+
+    // Storage still not ready: nothing changes, the source is not archived.
+    let r = await retryPending({ file: pendingFile, request, archive });
+    assert.deepEqual([r.shared, r.archived, r.left], [[], [], 3]);
+    assert.deepEqual(archived, []);
+    // Ready, but the source is answering: shared, the archive waits for the next pass.
+    ready = true;
+    archiveError = new Error("answering now");
+    r = await retryPending({ file: pendingFile, request, archive });
+    assert.deepEqual([r.shared.length, r.archived, r.left], [3, [], 1]);
+    assert.equal(readPending(pendingFile)[moved].shared, true);
+    // Next pass: not shared again, only archived; the list is empty.
+    archiveError = undefined;
+    const shares = calls.filter(([m]) => m === "session.visibility.set").length;
+    r = await retryPending({ file: pendingFile, request, archive });
+    assert.deepEqual([r.shared, r.archived, r.left], [[], [src.key], 0]);
+    assert.deepEqual(archived, [src]);
+    assert.equal(calls.filter(([m]) => m === "session.visibility.set").length, shares);
+    assert.deepEqual(readPending(pendingFile), {});
+
+    // A source written in after the move is kept (dropped with a warning); a share refused for good is dropped too.
+    addPending(pendingFile, { sessionKey: moved, agentId: "beta", error: "x", archive: src });
+    archiveError = Object.assign(new Error("written in after the move"), { keep: true });
+    const warnings = [];
+    r = await retryPending({ file: pendingFile, request, archive, warn: (m) => warnings.push(m) });
+    assert.deepEqual([r.dropped, r.left], [[moved], 0]);
+    assert.match(warnings[0], /source chat agent:alpha:catalog-import:m0 is kept: written in after the move/);
+    addPending(pendingFile, { sessionKey: moved, agentId: "beta", error: "x", archive: src });
+    r = await retryPending({ file: pendingFile, request: async () => { throw new Error("forbidden"); }, archive, warn: (m) => warnings.push(m) });
+    assert.deepEqual([r.dropped, r.left], [[moved], 0]);
+    assert.match(warnings[1], /stays a draft.*forbidden; the source chat .* is kept/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 

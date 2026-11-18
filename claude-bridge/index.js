@@ -25,6 +25,7 @@ import { adoptOnce, missingGrants, serialRunner } from "./adopt.js";
 import { PLUGIN_ID, migrateStateFile, stateFile } from "./legacy.js";
 import { INDEX_FILE, formatReport, indexForPrompt, projectAgents, syncOnce, syncSettings } from "./memory-sync.js";
 import { moveChat } from "./move.js";
+import { retryPending } from "./visibility.js";
 import { configuredAgents, rehomeOnce, rehomePlan, sourceMark } from "./rehome.js";
 import { publishHost } from "./catalog-host.js";
 import { applyReorder, readOrder, sortRows, writeOrder } from "./order.js";
@@ -45,6 +46,8 @@ function adoptedChats() {
   try { return JSON.parse(readFileSync(adoptedFile(), "utf8")); } catch { return {}; }
 }
 
+/** Imported sessions not shared yet, and the source a move archives after that (visibility.js). */
+export const pendingShareFile = () => stateFile(workbenchDir(), "pending-share.json");
 /** Sessions with a turn in progress (maintained by plugin hooks): session key → start time. */
 export const runningFile = () => stateFile(workbenchDir(), "running.json");
 /** The user's drag-and-drop order of folders and chats (OpenClaw fork: sessions.catalog.reorder). */
@@ -453,7 +456,7 @@ export default definePluginEntry({
           request: (method, params, options) => api.runtime.gateway.request(method, params, options),
           transcriptFile, folderCwd: (folder) => folderCwd(config, folder), agentOf, projectsDir: claudeProjectsDir,
           running: await runningNow(),
-          registryFile: adoptedFile(), log, warn: (m) => api.logger?.warn?.(`${PLUGIN_ID} ${m}`),
+          registryFile: adoptedFile(), pendingFile: pendingShareFile(), log, warn: (m) => api.logger?.warn?.(`${PLUGIN_ID} ${m}`),
         });
         // The moved chat takes the place it was dropped at.
         if (threadIds?.length) {
@@ -538,7 +541,7 @@ export default definePluginEntry({
     };
     const adoptPass = (readopt = []) => adoptOnce({
       request: (method, params, options) => api.runtime.gateway.request(method, params, options),
-      bind: bindChat, adoptedChats: adoptedList, treeChats, registryFile: adoptedFile(),
+      bind: bindChat, adoptedChats: adoptedList, treeChats, registryFile: adoptedFile(), pendingFile: pendingShareFile(),
       projects, defaultAgent, readopt, log,
     });
     const report = (result) => {
@@ -568,6 +571,23 @@ export default definePluginEntry({
       }) ?? await api.runtime.agent.session.getSessionEntryAsync({ agentId, sessionKey });
       if (!entry) throw Object.assign(new Error(`no session ${sessionKey}`), { code: "NOT_FOUND" });
       if ((entry.archivedAt !== undefined) !== archived) throw new Error(`${sessionKey} was not ${archived ? "archived" : "restored"}`);
+    };
+    // Sessions left drafts by an import or a move (visibility.js): shared now, then the source of a move is
+    // archived — unless it is answering (next pass) or was written in after the move (kept, with a warning).
+    const pendingPass = async () => {
+      const running = await runningNow();
+      return retryPending({
+        file: pendingShareFile(),
+        request: (method, params, options) => api.runtime.gateway.request(method, params, options),
+        archive: async ({ agentId, key, expectedSessionId, movedAt }) => {
+          if (running(key)) throw new Error(`${key} is answering now`);
+          await setArchived({ agentId, sessionKey: key, archived: true, expect: (e) => {
+            if (expectedSessionId && e.sessionId !== expectedSessionId) throw Object.assign(new Error(`${key} is another session now`), { keep: true });
+            if (movedAt && (e.lastInteractionAt ?? 0) > movedAt) throw Object.assign(new Error(`${key} was written in after the move`), { keep: true });
+          } });
+        },
+        log, warn: (m) => api.logger?.warn?.(`${PLUGIN_ID} ${m}`),
+      });
     };
     const rehomePass = async () => rehomeOnce({
       plan: planRehome(api.runtime.config.current(), await runningNow()),
@@ -622,11 +642,19 @@ export default definePluginEntry({
           return;
         }
         warned = false;
+        const pending = await pendingPass().catch((e) => {
+          api.logger?.warn?.(`${PLUGIN_ID} draft chats not retried: ${e?.message || e}`);
+          return { shared: [], archived: [], left: 0 };
+        });
+        if (pending.shared.length || pending.archived.length) {
+          api.logger?.info?.(`${PLUGIN_ID} shared ${pending.shared.length} draft chat(s), archived ${pending.archived.length} moved source(s)`
+            + (pending.left ? `, ${pending.left} still pending` : ""));
+        }
         report(await adoptPass());
         const rehomed = await rehomePass();
         reportRehome(rehomed);
         // Connected Control UIs re-read the tree and the chat menus.
-        if (rehomed.moved.length) {
+        if (rehomed.moved.length || pending.shared.length || pending.archived.length) {
           try { gatewayEvents?.emit("session-catalog-changed", {}, { scope: "operator.read" }); } catch { /* service stopped */ }
         }
       }).catch((e) => api.logger?.warn?.(`${PLUGIN_ID} adoption by agents failed: ${e?.message || e}`));

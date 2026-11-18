@@ -14,20 +14,19 @@
 //   2. the copy is imported into the target agent with its full history (sessions.catalog.import, "claude");
 //   3. the import session is bound to the copy in the target working folder: the next turn resumes it
 //      there and continues the copy itself (no fork: the copy belongs to this session alone);
-//   4. the session the chat had in the source agent is archived (not deleted; "Restore" brings it back) by
-//      the Gateway, as the operator who moved the chat (the move result names it).
+//   4. once the import session is shared (no longer a draft), the session the chat had in the source agent
+//      is archived (not deleted; "Restore" brings it back) by the Gateway, as the operator who moved the chat
+//      (the move result names it). Not shared yet: the source stays, and both are done on a later pass.
 // A chat not adopted yet has no source session: it is adopted straight into the target agent.
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { carryOf } from "./rehome.js";
 import { isCronKey, isMainKey } from "./session-keys.js";
+import { addPending, shareSession } from "./visibility.js";
 
 const IMPORT_TIMEOUT_MS = 10 * 60 * 1000;
 const SESSION_ROW = "s:";
-const SHARE_ATTEMPTS = 3;
-const SHARE_RETRY_MS = 500;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Claude Code project folder of a working folder: every character but ASCII letters and digits is "-". */
 export const claudeProjectDir = (projectsDir, cwd) => path.join(projectsDir, cwd.replace(/[^A-Za-z0-9]/g, "-"));
@@ -63,12 +62,14 @@ export function copyConversation(file, target, from, to) {
  *   transcriptFile(id) → path of the Claude Code transcript, or null;
  *   folderCwd(group) → working folder of a tree folder; agentOf(group) → its agent;
  *   running(sessionKey) → whether a turn is in progress; registryFile — adopted chats (adopt.js);
- *   newId() → id of the copied conversation (a UUID, as Claude Code names its conversations).
- * Returns { threadId, sessionKey } of the row in the target folder, and `archive` — the source session
- * the Gateway archives.
+ *   newId() → id of the copied conversation (a UUID, as Claude Code names its conversations);
+ *   pendingFile — sessions not shared yet (visibility.js), retried with the source's archive later.
+ * Returns { threadId, sessionKey } of the row in the target folder, `archive` — the source session the
+ * Gateway archives, only when the new session is shared — and `warning` when it is not (shown in the UI).
  */
 export async function moveChat({ row, source, group, claudeChat, request, bind, transcriptFile, folderCwd, agentOf,
-  projectsDir, running = () => false, registryFile, newId = randomUUID, log = () => {}, warn = log }) {
+  projectsDir, running = () => false, registryFile, pendingFile, newId = randomUUID, now = Date.now, shareDelays, sleep,
+  log = () => {}, warn = log }) {
   if (!row) throw fail("no such chat in the tree", "NOT_FOUND");
   if (row.customGroup === group) throw fail(`the chat is already in ${group}`);
   if (source && isMainKey(source.sessionKey)) throw fail("the main chat of a project stays with its agent");
@@ -107,31 +108,40 @@ export async function moveChat({ row, source, group, claudeChat, request, bind, 
     await request("sessions.patch", { key: sessionKey, expectedSessionId: bound.sessionId, archived: false })
       .catch((e) => log(`unarchive ${sessionKey}: ${e?.message || e}`));
   }
-  // An imported session starts as a draft (the ghost mark in the sidebar) until it is shared. A failed
-  // share left a moved chat as a draft once, with the error visible only in debug logs: retry, then warn.
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await request("session.visibility.set", { sessionKey, visibility: "shared" });
-      break;
-    } catch (e) {
-      if (attempt >= SHARE_ATTEMPTS) {
-        warn(`moved chat ${sessionKey} stays a draft: session.visibility.set failed ${attempt} times: ${e?.message || e}`);
-        break;
-      }
-      await sleep(SHARE_RETRY_MS * attempt);
-    }
-  }
+  // An imported session starts as a draft (the ghost mark in the sidebar) until it is shared. Right after the
+  // import the Gateway may not have its storage ready: retried with backoff (visibility.js).
+  const shared = await shareSession({ request, sessionKey, ...(shareDelays ? { delays: shareDelays } : {}), ...(sleep ? { sleep } : {}) });
 
-  // 4. The source session goes to the archive. The Gateway does it (OpenClaw fork, sessions.catalog.move)
-  // as the operator who moved the chat: a plugin may patch only sessions it created.
-  const archive = source && source.sessionKey !== sessionKey
+  // 4. The source session goes to the archive, only once the copy is shared: never two diverging copies with
+  // one hidden. The Gateway does it (OpenClaw fork, sessions.catalog.move) as the operator who moved the chat:
+  // a plugin may patch only sessions it created.
+  const sourceArchive = source && source.sessionKey !== sessionKey
     ? { key: source.sessionKey, ...(source.entry?.sessionId ? { expectedSessionId: source.entry.sessionId } : {}) }
     : undefined;
+  let archive = sourceArchive, warning;
+  if (!shared.ok) {
+    archive = undefined;
+    if (shared.retryable && pendingFile) {
+      // Shared on a later adoption pass, which then archives the source (index.js, the bridge's session store).
+      const movedAt = now();
+      addPending(pendingFile, { sessionKey, agentId, error: shared.error, now: movedAt,
+        ...(sourceArchive ? { archive: { agentId: source.agentId, ...sourceArchive, movedAt } } : {}) });
+      warn(`moved chat ${sessionKey} is not shared yet (session.visibility.set failed ${shared.attempts} times: ${shared.error}); `
+        + `retried on the next adoption pass${sourceArchive ? `, the source chat ${sourceArchive.key} is archived after that` : ""}`);
+      warning = `Moved, but the new chat is still a draft (${shared.error}). It is shared on the next adoption pass, within 10 minutes`
+        + (sourceArchive ? "; the old chat stays until then." : ".");
+    } else {
+      warn(`moved chat ${sessionKey} stays a draft: session.visibility.set failed ${shared.attempts} times: ${shared.error}`
+        + (sourceArchive ? `; the source chat ${sourceArchive.key} is kept` : ""));
+      warning = `Moved, but the new chat stays a draft (${shared.error})`
+        + (sourceArchive ? "; the old chat is kept. Share the new one or archive the old one by hand." : ".");
+    }
+  }
 
   // The chat and everything bound to the source session stay adopted: the tree must not show them again
   // in the old folder, and adoption must not bring them back to the old agent.
   const registry = readJson(registryFile);
   for (const id of new Set([chatId, claudeId, copyId, ...related])) registry[id] = { agentId, sessionKey };
   writeJson(registryFile, registry);
-  return { threadId: `${SESSION_ROW}${sessionKey}`, sessionKey, ...(archive ? { archive } : {}) };
+  return { threadId: `${SESSION_ROW}${sessionKey}`, sessionKey, ...(archive ? { archive } : {}), ...(warning ? { warning } : {}) };
 }

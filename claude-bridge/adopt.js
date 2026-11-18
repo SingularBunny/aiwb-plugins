@@ -9,6 +9,7 @@
 // a plugin exact methods: OPENCLAW_PLUGIN_GATEWAY_METHODS="aiwb-claude-bridge=<GATEWAY_METHODS>".
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { addPending, shareSession } from "./visibility.js";
 
 /** Gateway methods adoption calls; all of them must be granted. */
 export const ADOPTION_METHODS = ["sessions.catalog.list", "sessions.catalog.import", "sessions.patch", "session.visibility.set"];
@@ -41,9 +42,11 @@ const writeJson = (file, value) => { mkdirSync(path.dirname(file), { recursive: 
  *
  *   request(method, params, options) — a Gateway method (api.runtime.gateway.request);
  *   bind({ agentId, sessionKey, threadId, cwd }) → { sessionKey, sessionId, archived } (the plugin's bind);
- *   treeChats() → [{ cliSessionId, title }] — chats of the tree, for readopt by title.
+ *   treeChats() → [{ cliSessionId, title }] — chats of the tree, for readopt by title;
+ *   pendingFile — sessions not shared yet (visibility.js), retried on the next pass.
  */
-export async function adoptOnce({ request, bind, adoptedChats, treeChats, registryFile, projects = {}, defaultAgent = "main", readopt = [], log = () => {} }) {
+export async function adoptOnce({ request, bind, adoptedChats, treeChats, registryFile, pendingFile, projects = {}, defaultAgent = "main",
+  readopt = [], shareDelays, sleep, log = () => {} }) {
   const registry = readJson(registryFile);
   const again = new Set(), unknown = [];
   if (readopt.length) {
@@ -71,7 +74,10 @@ export async function adoptOnce({ request, bind, adoptedChats, treeChats, regist
     cursor = host.nextCursor;
   } while (cursor);
 
-  const result = { adopted: 0, failed: 0, errors: [], readopt: [...again], unknown };
+  const result = { adopted: 0, failed: 0, errors: [], readopt: [...again], unknown, drafts: 0 };
+  // Backoff for the share while it helps: once a session stays a draft after all of it, the storage is not
+  // ready for this pass; the others get one attempt and wait in the pending list too.
+  let delays = shareDelays;
   for (const row of rows.filter((x) => !x.sessionKey)) {
     const agentId = projects[row.customGroup] || defaultAgent;
     try {
@@ -86,8 +92,15 @@ export async function adoptOnce({ request, bind, adoptedChats, treeChats, regist
           .catch((e) => log(`unarchive ${key}: ${e?.message || e}`));
       }
       // The import creates a draft (visible only to its owner, a ghost in the sidebar); a project chat is shared.
-      await request("session.visibility.set", { sessionKey: key, visibility: "shared" })
-        .catch((e) => log(`share ${key}: ${e?.message || e}`));
+      const shared = await shareSession({ request, sessionKey: key, ...(delays ? { delays } : {}), ...(sleep ? { sleep } : {}) });
+      if (!shared.ok) {
+        result.drafts++;
+        log(`share ${key}: ${shared.error}`);
+        if (shared.retryable) {
+          delays = [];
+          if (pendingFile) addPending(pendingFile, { sessionKey: key, agentId, error: shared.error });
+        }
+      }
       registry[row.threadId] = { agentId, sessionKey: key };
       result.adopted++;
     } catch (e) {
