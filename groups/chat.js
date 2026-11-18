@@ -153,8 +153,11 @@ export function registerChatGroups(api, { stateDir, now = () => Date.now(), tran
     }
   }
 
-  const method = (name, scope, handler) => api.registerGatewayMethod(name, async ({ params, respond }) => {
-    try { respond(true, await handler(params ?? {}), undefined); } catch (error) { fail(respond, error); }
+  // An admin-scoped Control UI client is the owner, as the Gateway's own chat.send decides it.
+  const isOwnerClient = (client) => Array.isArray(client?.connect?.scopes) && client.connect.scopes.includes("operator.admin");
+
+  const method = (name, scope, handler) => api.registerGatewayMethod(name, async ({ params, respond, client }) => {
+    try { respond(true, await handler(params ?? {}, client), undefined); } catch (error) { fail(respond, error); }
   }, { scope });
 
   method(CHAT_METHODS.get, "operator.read", async (params) => {
@@ -189,7 +192,7 @@ export function registerChatGroups(api, { stateDir, now = () => Date.now(), tran
   });
 
   // The user's message to one member: written into the chat now; the member answers in the background.
-  method(CHAT_METHODS.ask, "operator.write", async (params) => {
+  method(CHAT_METHODS.ask, "operator.write", async (params, client) => {
     const target = targetOf(params);
     const chat = load(target);
     const text = String(params.text ?? "").trim();
@@ -205,7 +208,7 @@ export function registerChatGroups(api, { stateDir, now = () => Date.now(), tran
       try { history = await transcript.read(target.sessionKey); } catch { /* the member gets the question alone */ }
       const turnId = randomUUID();
       await memberSession(target, chat, member);                // an ACP member's session exists before the question is written
-      if (params.record !== false) await transcript.append(target, userRow({ text, at: now(), turnId }));
+      if (params.record !== false) await transcript.append(target, userRow({ text, at: now(), turnId, owner: isOwnerClient(client) }));
       const message = memberTurnMessage({ messages: history, member, members: chat.members, since: chat.cursors?.[member.key] ?? 0, asked: text });
       const { reply } = await startTurn(target, chat, member, message, controller.signal);
       void detach(() => finishTurn(target, chat, member, turnId, reply)).catch(() => {});

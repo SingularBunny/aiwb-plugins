@@ -111,8 +111,11 @@ export function replyAuthor(member, runtime) {
     : { provider: "openclaw-agent", model: member.id };
 }
 
-export function userRow({ text, at, turnId }) {
-  return { role: "user", content: [{ type: "text", text }], timestamp: at, idempotencyKey: `aiwb-group:${turnId}:user` };
+export function userRow({ text, at, turnId, owner = false }) {
+  // The owner's message reads like any message they send: same provenance and sender identity as chat.send writes.
+  const sender = owner ? { senderIsOwner: true, senderId: "gateway-owner", senderIdentity: { type: "profile", id: "gateway-owner" } } : {};
+  return { role: "user", content: [{ type: "text", text }], timestamp: at, idempotencyKey: `aiwb-group:${turnId}:user`,
+    provenance: { kind: "external_user" }, __openclaw: sender };
 }
 
 /** A member's reply (or the reason it gave none) as a chat row carrying the member as its participant. */

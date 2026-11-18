@@ -174,3 +174,14 @@ test("group chat plugin: Stop ends a member's turn that is still running", async
   for (let i = 0; i < 50 && running.size; i++) await new Promise((r) => setTimeout(r, 5));
   assert.equal(rows.at(-1).errorMessage, "stopped");
 });
+
+test("a group chat question from the owner is written as the owner's own message", async () => {
+  const { userRow } = await import("../groups/chat-turns.js");
+  const owner = userRow({ text: "@Junie hi", at: 1, turnId: "t", owner: true });
+  assert.equal(owner.role, "user");
+  assert.deepEqual(owner.provenance, { kind: "external_user" });
+  assert.equal(owner.__openclaw.senderIsOwner, true);
+  assert.deepEqual(owner.__openclaw.senderIdentity, { type: "profile", id: "gateway-owner" });
+  const guest = userRow({ text: "hi", at: 1, turnId: "u" });
+  assert.equal(guest.__openclaw.senderIsOwner, undefined);
+});
