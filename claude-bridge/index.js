@@ -159,8 +159,8 @@ export default definePluginEntry({
       return own && agentOf(own) === agentId ? own : groupOfAgent.get(agentId);
     };
 
-    // Turn in progress: in OpenClaw 2026.10.10 a catalog row shows the spinner only if its status is
-    // running; live session state is not passed to it. Turns are marked by hooks (requires
+    // Turn in progress: a catalog row shows the spinner only if its status is running; live session
+    // state is not passed to it. Turns are marked by hooks (requires
     // plugins.entries.aiwb-claude-bridge.hooks.allowConversationAccess; the plugin does not read messages).
     // Marks live in a file: OpenClaw serves hooks and the catalog from different plugin instances
     // (in-memory marks of one instance are not visible to the catalog).

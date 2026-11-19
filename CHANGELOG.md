@@ -8,11 +8,6 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ## [Unreleased]
 
-### Fixed
-
-- `aiwb-groups` 0.2.1: a question sent to a group member is written as the owner's own message (provenance and sender
-  identity like `chat.send`), so the chat shows it under the owner instead of a bare "Message" label.
-
 ### Added
 
 - `aiwb-groups` 0.2.0: group chats in ordinary chats, for the Control UI of the ai-workbench OpenClaw fork. **Add to
@@ -80,6 +75,9 @@ All notable changes to the ai-workbench plugins. The format follows
   copied before OCR was installed is redone once it is.
 
 ### Fixed
+
+- `aiwb-groups` 0.2.1: a question sent to a group member is written as the owner's own message (provenance and sender
+  identity like `chat.send`), so the chat shows it under the owner instead of a bare "Message" label.
 
 - `aiwb-claude-bridge` 0.3.1: a chat moved to another project no longer stays a hidden draft next to its old copy.
   Sharing an imported session (`session.visibility.set`) right after the import is retried with backoff (0.5 to

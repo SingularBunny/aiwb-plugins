@@ -10,12 +10,12 @@ each plugin with `openclaw plugins install --link`.
 
 | Folder | Plugin | What it does |
 |---|---|---|
-| `judge/` | `judge` | judge: a model from another family evaluates the answer (`judge` skill) |
-| `claude-bridge/` | `aiwb-claude-bridge` | Claude Desktop & Code bridge: the "Projects" chat tree by project folder, old chats continued in agents, live run status, drag-and-drop order, live import of Claude Code memory ([README](claude-bridge/README.md)) |
+| `judge/` | `judge` | A model from another family evaluates the answer; panel of judges, verdict log and stats (`judge` skill) |
+| `claude-bridge/` | `aiwb-claude-bridge` | Claude Desktop & Code bridge: the "Projects" chat tree by project folder, old chats continued in agents, live run status, drag-and-drop order, live import of Claude Code memory, continue a chat in a terminal, move a chat to its project ([README](claude-bridge/README.md)) |
 | `shared-memory/` | `aiwb-memory` | shared memory for all agents, as in Claude Desktop, and each agent's knowledge base folders |
 | `fork-settings/` | `aiwb-fork-settings` | fork settings: which OpenClaw fork settings are in effect in the Gateway, and setting them; a Proxy page in the Control UI (routes editor, reachability check) and a Chat files page (folders whose files the chat serves, for all agents and per agent) ([README](fork-settings/README.md)) |
 | `office/` | `aiwb-office` | Office documents in chat: local LibreOffice → PDF preview, and their text for the model (document extractor); text copies of knowledge base PDF and Office files for memory search; skill `searchable-pdf`: a scan's copy with a text layer |
-| `compare/` | `aiwb-compare` | Multi-model: several models answer, a judge picks the most consistent answer or one merges them; a Control UI page for the roles |
+| `compare/` | `aiwb-compare` | Multi-model: several models answer, a judge picks the most consistent answer or one merges them, with an agreement matrix; a Control UI page for the roles |
 | `groups/` | `aiwb-groups` | Groups: several agents in one conversation, a manager picks who speaks next; group chats in ordinary chats (agents, ACP agents and models as participants, asked by @name) |
 | `plan/` | `aiwb-plan` | Plan mode for any model: `/plan` or the Plan toggle in the Control UI composer, then research and an approved plan before any change |
 | `gpu/` | `aiwb-gpu` | GPU load and memory: a line in the chat header and a side panel with the models and processes that hold GPU memory (NVIDIA, `nvidia-smi`) |
@@ -26,8 +26,9 @@ judge; LibreOffice (`soffice`) for `aiwb-office`; `pdftotext` (poppler), OCRmyPD
 text copies and searchable PDF copies. The ai-workbench install plan lists the missing ones with an install command (ai-workbench
 `docs/install/system-programs.md`).
 
-Documentation lives in ai-workbench, `docs/` (features: judge, projects, shared memory, document preview,
-scheduled tasks; OpenClaw from the fork: `aiwb-fork-settings`).
+Documentation lives in ai-workbench, `docs/features/` (judge, chats and projects, shared memory and knowledge,
+document preview, multi-model, groups, plan mode, GPU use, chat files, scheduled tasks; OpenClaw from the fork:
+`aiwb-fork-settings`).
 
 Until November 2026 the folders and ids were `ai-workbench/` (`ai-workbench`), `projects/` (`aiwb-projects`),
 `memory/` and `settings/` (`aiwb-settings`). The ai-workbench installer moves an existing install to the new

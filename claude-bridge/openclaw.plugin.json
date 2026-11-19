@@ -1,7 +1,7 @@
 {
   "id": "aiwb-claude-bridge",
   "name": "Claude Desktop & Code bridge",
-  "description": "Brings Claude Desktop and Claude Code into OpenClaw: the chat tree by project folder, continuing old chats in agents, live run status, drag-and-drop order, and live import of Claude Code memory",
+  "description": "Brings Claude Desktop and Claude Code into OpenClaw: the chat tree by project folder, continuing old chats in agents, live run status, drag-and-drop order, and live import of Claude Code memory, continuing a chat in a terminal, and moving a chat to its project's agent",
   "categories": [
     "developer-tools"
   ],

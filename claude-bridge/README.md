@@ -163,7 +163,7 @@ file), and folders outside the root (their chats are not in the tree either).
 **What is written.** Facts go to `<agent workspace>/memory/<name>.md` (the workspace is
 `agents.entries.<id>.workspace`). The Claude Code index goes to `<workspace>/memory/claude-code-index.md`,
 a file owned by the sync, one section per tree folder when several folders feed one agent (for example
-`AI-Platform` and `_no_space` both feed `main`). Its links are the source links as is: they resolve next
+`Alpha` and `Beta` both feed `main`). Its links are the source links as is: they resolve next
 to the facts. The agent's root `MEMORY.md` is never written. Other files and subfolders are not copied.
 
 **Direction and conflicts.** Claude Code → OpenClaw only. Nothing is ever deleted on the OpenClaw side
@@ -248,6 +248,7 @@ connected Control UIs to re-read the tree (once at once, once more 3 seconds lat
 settled the turn end). The file is written only when that set changes. Without the `sessions.list` grant
 the marks decide alone, and a mark older than 30 minutes no longer shows the spinner. Automation sessions
 (folder rows since they sit in their agent's folder) take their spinner from the same live status.
+`AIWB_CLAUDE_BRIDGE_DEBUG=1` in the Gateway environment logs every mark change with the plugin instance's pid.
 
 The tree reaches the sidebar through the host event as well as the list response (`catalog-host.js`): on a
 connection that already has a page, the Gateway answers a refresh from its cache without waiting for the

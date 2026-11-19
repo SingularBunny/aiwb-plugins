@@ -1,7 +1,7 @@
 {
   "id": "aiwb-office",
-  "name": "Document preview",
-  "description": "Word, Excel and PowerPoint (and OpenDocument) documents open in chat as PDF and reach the model as text: converted by local LibreOffice, files never leave the machine",
+  "name": "Office documents",
+  "description": "Word, Excel and PowerPoint (and OpenDocument) documents open in chat as PDF and reach the model as text: converted by local LibreOffice, files never leave the machine; text copies of knowledge base PDF and Office files for memory search, and a searchable-pdf skill that adds a text layer to scans",
   "categories": [
     "productivity"
   ],

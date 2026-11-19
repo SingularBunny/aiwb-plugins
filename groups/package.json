@@ -3,7 +3,7 @@
   "version": "0.2.1",
   "private": true,
   "type": "module",
-  "description": "Several agents in one conversation; a manager picks who speaks next",
+  "description": "Several agents in one conversation; a manager picks who speaks next; group chats in ordinary chats (agents, ACP agents and models asked by @name)",
   "openclaw": {
     "extensions": [
       "./index.js"
