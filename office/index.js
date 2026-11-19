@@ -77,10 +77,11 @@ export default definePluginEntry({
           res.setHeader("Allow", "POST");
           return fail(res, 405, "POST required");
         }
-        if (!converter) return fail(res, 503, "LibreOffice not found");
         const name = new URL(req.url ?? "", "http://local").searchParams.get("name") ?? "";
         const ext = path.extname(name).toLowerCase();
+        // A file that is not an Office document is a bad request whether or not LibreOffice is here.
         if (!OFFICE_EXTENSIONS.includes(ext)) return fail(res, 400, `not an Office document: ${ext || "no extension"}`);
+        if (!converter) return fail(res, 503, "LibreOffice not found");
         const input = path.join(cacheDir, `in-${randomBytes(8).toString("hex")}${ext}`);
         try {
           const body = await readBody(req, MAX_SOURCE_BYTES);

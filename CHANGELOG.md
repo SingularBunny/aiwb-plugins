@@ -76,6 +76,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-office` 0.4.1: a file that is not an Office document is refused with 400 even on a machine without
+  LibreOffice (it got 503 there, as if a converter could have helped).
 - `aiwb-claude-bridge` 0.3.2: state files (adoption, moves, pending shares, folder order, running marks, memory
   sync) are written through a temporary file and renamed, so a crash or a second plugin instance never reads half a
   file (`state-file.js`, one helper instead of four copies). Secret redaction of imported memory no longer swallows
