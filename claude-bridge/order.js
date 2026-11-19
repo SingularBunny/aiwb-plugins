@@ -2,8 +2,8 @@
 // the plugin) comes first, then the configured folder order (config.order), then the rest: folders
 // alphabetically, chats newest first. In a folder the user has arranged, chats active since then go on
 // top, the arranged ones follow, and older chats the user never placed come last.
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import path from "node:path";
+import { readFileSync } from "node:fs";
+import { writeJson } from "./state-file.js";
 
 const asObject = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
 
@@ -22,8 +22,7 @@ const timeOf = (r) => {
 };
 
 export function writeOrder(file, order) {
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(order, null, 2) + "\n");
+  writeJson(file, order);
 }
 
 /** Comparator of folder names: persisted order, then configured order, then alphabetical. */

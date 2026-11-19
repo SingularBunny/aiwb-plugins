@@ -7,8 +7,7 @@
 // The plugin calls the Gateway methods in process (api.runtime.gateway.request). OpenClaw allows that
 // only to bundled and trusted official plugins; the ai-workbench OpenClaw fork lets the operator grant
 // a plugin exact methods: OPENCLAW_PLUGIN_GATEWAY_METHODS="aiwb-claude-bridge=<GATEWAY_METHODS>".
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { readJson, writeJson } from "./state-file.js";
 import { addPending, shareSession } from "./visibility.js";
 
 /** Gateway methods adoption calls; all of them must be granted. */
@@ -31,8 +30,6 @@ export function missingGrants(pluginId, env = process.env, methods = ADOPTION_ME
   return methods.filter((m) => !granted.has(m));
 }
 
-const readJson = (file) => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; } };
-const writeJson = (file, value) => { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(value, null, 2) + "\n"); };
 
 /**
  * One adoption pass. Registry of adopted chats (registryFile): a chat is not adopted twice on its own,

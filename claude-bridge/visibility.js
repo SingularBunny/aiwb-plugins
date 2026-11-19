@@ -7,8 +7,7 @@
 // A move (move.js) archives the source chat only once its copy in the target agent is shared: a pending
 // entry carries that archive, done when the share succeeds, so a moved chat is never left a hidden draft
 // next to an archived source, nor archived while its copy is still a draft.
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { readJson, writeJson } from "./state-file.js";
 
 /** Waits between share attempts: 0.5 + 1 + 2 + 4 + 8 = 15.5 s, six attempts. */
 export const SHARE_DELAYS_MS = [500, 1000, 2000, 4000, 8000];
@@ -37,13 +36,6 @@ export async function shareSession({ request, sessionKey, delays = SHARE_DELAYS_
   }
 }
 
-const readJson = (file) => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; } };
-function writeJson(file, value) {
-  mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(value, null, 2) + "\n");
-  renameSync(tmp, file);
-}
 
 export const readPending = (file) => readJson(file);
 

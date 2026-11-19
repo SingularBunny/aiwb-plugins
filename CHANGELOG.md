@@ -76,6 +76,11 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-claude-bridge` 0.3.2: state files (adoption, moves, pending shares, folder order, running marks, memory
+  sync) are written through a temporary file and renamed, so a crash or a second plugin instance never reads half a
+  file (`state-file.js`, one helper instead of four copies). Secret redaction of imported memory no longer swallows
+  the text after a pasted private key: a whole key block ends at its own END line, a clipped one takes only base64
+  lines and PEM headers. Tests for both.
 - `aiwb-groups` 0.2.1: a question sent to a group member is written as the owner's own message (provenance and sender
   identity like `chat.send`), so the chat shows it under the owner instead of a bare "Message" label.
 

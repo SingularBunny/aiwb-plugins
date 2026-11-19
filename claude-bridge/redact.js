@@ -8,8 +8,10 @@ export const REDACTED = "‹secret›";
 const keepName = (m, k, v) => (/^(no-check|null|undefined|\*+|‹secret›|‹секрет›|<[^>]*>?)$/i.test(v) || /^[$%{]/.test(v) ? m : k + REDACTED);
 
 const SECRET_PATTERNS = [
-  // The key body runs to END or to the end of the base64 lines (clipped output has no END).
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----(?:\s*[A-Za-z0-9+\/=:,-]+)*(?:\s*-----END [A-Z ]*PRIVATE KEY-----)?/g, () => REDACTED],
+  // A whole block ends at its own END line; a clipped one takes only base64 lines (no spaces) and the
+  // PEM headers, so prose after a pasted key is not swallowed.
+  [/-----BEGIN ([A-Z ]*)PRIVATE KEY-----[\s\S]*?-----END \1PRIVATE KEY-----/g, () => REDACTED],
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----(?:\r?\n(?:[A-Za-z0-9+\/=]+|(?:Proc-Type|DEK-Info):[^\n]*))*/g, () => REDACTED],
   [/\b(sk-ant-[A-Za-z0-9_-]{16,}|sk-or-v1-[a-f0-9]{16,}|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|xox[abpr]-[A-Za-z0-9-]{10,})/g, () => REDACTED],
   // A quoted value may start with any character (a password like '}x…'): take the whole quoted string.
   // No whitespace inside, so shell code like grep "X_PASSWORD=" .env | cut … is left alone.

@@ -9,8 +9,8 @@
 // signal: hooks write them at turn start and remove them at agent_end, a file watcher tells the sidebar
 // to re-read the catalog. Every write is a full catalog re-read in every connected Control UI, so a
 // write happens only when the set of marked sessions changes, not on every model call of a turn.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { readFileSync } from "node:fs";
+import { writeJson } from "./state-file.js";
 
 /** Without the Gateway's live status (method not granted, no Gateway in this process): marks older
  *  than this are ignored, so a missed turn end does not keep the spinner forever. */
@@ -48,8 +48,7 @@ export function markRun(file, key, on, now = Date.now()) {
   if (!pruned && had === on) return false;
   if (on) { if (!had) kept[key] = now; } else delete kept[key];
   try {
-    mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(kept));
+    writeJson(file, kept, { compact: true });
     return true;
   } catch { return false; /* not writable — no fast hint */ }
 }

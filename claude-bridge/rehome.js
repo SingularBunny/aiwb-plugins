@@ -12,7 +12,7 @@
 //     sessions.catalog.move): the conversation the session continues now, with the turns made there.
 // Both keep the title, the pin and the read state, and record the chat in the registry under the new
 // session, so adoption never brings back a second copy. Archived and deleted sessions are left alone.
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readJson, writeJson } from "./state-file.js";
 import path from "node:path";
 
 import { LEGACY_ID, PLUGIN_ID } from "./legacy.js";
@@ -20,8 +20,6 @@ import { LEGACY_ID, PLUGIN_ID } from "./legacy.js";
 const IMPORT_TIMEOUT_MS = 10 * 60 * 1000;
 const SESSION_ROW = "s:";
 
-const readJson = (file) => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; } };
-const writeJson = (file, value) => { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(value, null, 2) + "\n"); };
 
 /** Source chat mark of an adopted session; sessions adopted before the rename carry it under the old id. */
 export const sourceMark = (entry) => entry?.pluginExtensions?.[PLUGIN_ID]?.sourceThreadId ?? entry?.pluginExtensions?.[LEGACY_ID]?.sourceThreadId;

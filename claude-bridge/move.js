@@ -20,6 +20,7 @@
 // A chat not adopted yet has no source session: it is adopted straight into the target agent.
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readJson, writeJson } from "./state-file.js";
 import path from "node:path";
 import { carryOf } from "./rehome.js";
 import { isCronKey, isMainKey } from "./session-keys.js";
@@ -31,8 +32,6 @@ const SESSION_ROW = "s:";
 /** Claude Code project folder of a working folder: every character but ASCII letters and digits is "-". */
 export const claudeProjectDir = (projectsDir, cwd) => path.join(projectsDir, cwd.replace(/[^A-Za-z0-9]/g, "-"));
 
-const readJson = (file) => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; } };
-const writeJson = (file, value) => { mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(value, null, 2) + "\n"); };
 const fail = (message, code = "INVALID_REQUEST") => Object.assign(new Error(message), { code });
 
 /** Copies a Claude Code transcript as conversation `to`: records of conversation `from` get the new id. */

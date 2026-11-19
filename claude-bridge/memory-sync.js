@@ -14,6 +14,7 @@
 //   node claude-bridge/memory-sync.js --apply   [--config <openclaw.json>]   one sync now
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { writeJson } from "./state-file.js";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -274,8 +275,7 @@ export async function syncOnce(settings, { dryRun = false } = {}) {
   const result = { ...plan, redacted, sources: withFiles.map(({ files, ...s }) => ({ ...s, files: Object.keys(files).length })), skipped, errors: [] };
   if (dryRun) return result;
   const applied = applyPlan(plan, state);
-  mkdirSync(path.dirname(settings.stateFile), { recursive: true });
-  writeFileSync(settings.stateFile, JSON.stringify(applied.state, null, 2) + "\n");
+  writeJson(settings.stateFile, applied.state);
   result.errors = applied.errors;
   return result;
 }
