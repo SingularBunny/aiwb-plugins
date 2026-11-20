@@ -1,0 +1,22 @@
+{
+  "id": "aiwb-automation-chat",
+  "name": "Automation chat",
+  "description": "In an automation's chat: Run now / Run again in the header (a job that delivers into the chat, after a confirmation) and a Runs side panel with the latest runs of those jobs, each opening in place in the run viewer",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "controlUi": {
+    "entry": "dist/control-ui/automation-chat.js",
+    "styles": [
+      "dist/control-ui/automation-chat.css"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
