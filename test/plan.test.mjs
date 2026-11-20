@@ -107,11 +107,11 @@ test("plan: the composer button reads the chat's plan mode, flips it and reads a
       return { on };
     },
     onEvent: (event, listener) => listeners.set(event, listener),
-    ui: { registerAction: (action) => actions.set(action.id, action), invalidate: () => { invalidations += 1; } },
+    ui: { placements: ["composer-controls"], registerAction: (action) => actions.set(action.id, action), invalidate: () => { invalidations += 1; } },
   };
   ui.activate(host);
   const button = actions.get("plan-mode");
-  assert.equal(button.placement, "composer");
+  assert.equal(button.placement, "composer-controls");
   const chat = { sessionKey: "agent:main:chat", agentId: "main" };
   assert.equal(button.resolve(chat).disabled, true);
   await new Promise((resolve) => setImmediate(resolve));
@@ -126,4 +126,11 @@ test("plan: the composer button reads the chat's plan mode, flips it and reads a
   assert.equal(button.resolve(chat).label, "Plan: off");
   assert.ok(invalidations > 0);
   assert.equal(button.resolve({}).hidden, true);
+});
+
+test("plan: no button where the host has no composer-controls placement", async () => {
+  const { default: ui } = await import("../plan/dist/control-ui/plan.js");
+  const actions = [];
+  ui.activate({ locale: "en", request: async () => ({}), onEvent: () => {}, ui: { registerAction: (a) => actions.push(a), invalidate: () => {} } });
+  assert.equal(actions.length, 0);
 });

@@ -71,10 +71,13 @@ export default {
         host.ui.invalidate();
       }
     });
+    // The button belongs in the composer's control row, next to the model and effort pickers: a host that has that
+    // placement for plugins says so. Without it nothing is added (the fork then shows its own Plan toggle there).
+    if (!host.ui.placements?.includes?.("composer-controls")) return;
     host.ui.registerAction({
       id: "plan-mode",
       label: s.off,
-      placement: "composer",
+      placement: "composer-controls",
       resolve: (context) => {
         if (!context.sessionKey) return { hidden: true };
         const target = targetOf(context);
