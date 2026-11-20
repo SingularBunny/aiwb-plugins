@@ -10,6 +10,11 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-automation-chat` 0.1.0: in an automation's chat, **Run now / Run again** (or **Run…** with a choice) in the
+  header and a **Runs** side panel with the latest runs of the jobs that deliver into the chat, each opening in place
+  in the run viewer; Runs opens on its own the first time a page shows the chat. Moved out of the ai-workbench
+  OpenClaw fork; needs a fork build with `host.components.mountCronRun` and per-chat plugin panels, and adds nothing
+  on older builds.
 - `aiwb-claude-bridge` 0.3.3: an automation run with Claude in Chrome tools is asked to close the tabs it opened before
   it finishes, so the browser no longer gets a new tab group on every run (chats keep their one group).
 - `aiwb-plan` 0.3.0: the **Plan: on / Plan: off** button next to the Control UI composer comes with the plugin
