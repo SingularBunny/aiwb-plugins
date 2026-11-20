@@ -1,0 +1,22 @@
+{
+  "id": "aiwb-chat-tools",
+  "name": "Chat tools",
+  "description": "Items in a chat's menu for any model: Forget a topic (local ranking of chat turns and memory paragraphs, the ticked ones leave every model context), New chat, Learn a skill from this chat, Reset chat",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "controlUi": {
+    "entry": "dist/control-ui/chat-tools.js",
+    "styles": [
+      "dist/control-ui/chat-tools.css"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

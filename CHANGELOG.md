@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-chat-tools` 0.1.0: items in a chat's ⋯ menu for any model, moved out of the ai-workbench OpenClaw fork:
+  **Forget a topic…** (the fork's `chat.forget.find` and `chat.forget.apply`), **New chat**, **Learn a skill from this
+  chat** (`/learn`) and **Reset chat…** (`/reset`, after a confirmation).
 - `aiwb-groups` 0.2.0: group chats in ordinary chats, for the Control UI of the ai-workbench OpenClaw fork. **Add to
   group chat** (in the chat header and the **Hand off…** menu) adds an OpenClaw agent, an ACP agent (as in
   `acp.allowedAgents`, e.g. Junie) or any model to the chat as a separate participant; the chat's own model or bound

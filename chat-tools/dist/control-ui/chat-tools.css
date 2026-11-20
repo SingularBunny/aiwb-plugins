@@ -1,0 +1,88 @@
+/* Chat tools dialogs (Forget a topic, Reset chat). Host tokens: --text, --muted, --border, --danger. */
+.aiwb-chat-tools {
+  display: grid;
+  gap: 10px;
+  width: min(640px, calc(100vw - 48px));
+}
+
+.aiwb-chat-tools__label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.aiwb-chat-tools__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+}
+
+.aiwb-chat-tools__hint,
+.aiwb-chat-tools__status,
+.aiwb-chat-tools__note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.aiwb-chat-tools__note {
+  color: var(--danger, #e5484d);
+}
+
+.aiwb-chat-tools__heading {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.aiwb-chat-tools__list {
+  display: grid;
+  gap: 4px;
+  max-height: 40vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.aiwb-chat-tools__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.aiwb-chat-tools__item:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.aiwb-chat-tools__preview {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.aiwb-chat-tools__file,
+.aiwb-chat-tools__score {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.aiwb-chat-tools__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
