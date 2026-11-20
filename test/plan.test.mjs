@@ -90,3 +90,40 @@ test("plan: the short key forms name the chat the command sees", () => {
   assert.equal(planSessionKey("agent:Main:dashboard:abc"), "agent:main:dashboard:abc");
   assert.equal(planSessionKey("  "), undefined);
 });
+
+test("plan: the composer button reads the chat's plan mode, flips it and reads again after a finished turn", async () => {
+  const { default: ui } = await import("../plan/dist/control-ui/plan.js");
+  const calls = [];
+  let on = false;
+  let invalidations = 0;
+  const actions = new Map();
+  const listeners = new Map();
+  const host = {
+    locale: "en",
+    connection: { connected: true, canWrite: true },
+    request: async (method, params) => {
+      calls.push([method, params]);
+      if (method === "aiwb-plan.set") on = params.on;
+      return { on };
+    },
+    onEvent: (event, listener) => listeners.set(event, listener),
+    ui: { registerAction: (action) => actions.set(action.id, action), invalidate: () => { invalidations += 1; } },
+  };
+  ui.activate(host);
+  const button = actions.get("plan-mode");
+  assert.equal(button.placement, "composer");
+  const chat = { sessionKey: "agent:main:chat", agentId: "main" };
+  assert.equal(button.resolve(chat).disabled, true);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(button.resolve(chat), { label: "Plan: off", disabled: false });
+  await button.run(chat);
+  assert.deepEqual(calls.at(-1), ["aiwb-plan.set", { sessionKey: "agent:main:chat", agentId: "main", on: true }]);
+  assert.equal(button.resolve(chat).label, "Plan: on");
+  on = false;
+  listeners.get("chat")({ sessionKey: "agent:main:chat", state: "final" });
+  button.resolve(chat);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(button.resolve(chat).label, "Plan: off");
+  assert.ok(invalidations > 0);
+  assert.equal(button.resolve({}).hidden, true);
+});

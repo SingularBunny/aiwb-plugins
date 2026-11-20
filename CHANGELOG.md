@@ -10,6 +10,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-plan` 0.3.0: the **Plan: on / Plan: off** button next to the Control UI composer comes with the plugin
+  (it was in the ai-workbench OpenClaw fork); re-read after every finished turn.
 - `aiwb-chat-tools` 0.1.0: items in a chat's ⋯ menu for any model, moved out of the ai-workbench OpenClaw fork:
   **Forget a topic…** (the fork's `chat.forget.find` and `chat.forget.apply`), **New chat**, **Learn a skill from this
   chat** (`/learn`) and **Reset chat…** (`/reset`, after a confirmation).

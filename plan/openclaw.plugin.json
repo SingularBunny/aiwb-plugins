@@ -13,6 +13,9 @@
       "exit_plan_mode"
     ]
   },
+  "controlUi": {
+    "entry": "dist/control-ui/plan.js"
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
