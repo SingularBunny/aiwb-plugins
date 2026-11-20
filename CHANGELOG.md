@@ -10,6 +10,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-claude-bridge` 0.3.3: an automation run with Claude in Chrome tools is asked to close the tabs it opened before
+  it finishes, so the browser no longer gets a new tab group on every run (chats keep their one group).
 - `aiwb-plan` 0.3.0: the **Plan: on / Plan: off** button next to the Control UI composer comes with the plugin
   (it was in the ai-workbench OpenClaw fork); re-read after every finished turn.
 - `aiwb-chat-tools` 0.1.0: items in a chat's ⋯ menu for any model, moved out of the ai-workbench OpenClaw fork:

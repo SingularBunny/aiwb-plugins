@@ -32,6 +32,7 @@ import { applyReorder, readOrder, sortRows, writeOrder } from "./order.js";
 import { isRunning, liveRunningReader, markRun, readRuns, runSetTracker } from "./running.js";
 import { isMainKey, isTreeSessionKey } from "./session-keys.js";
 import { CHATS_FILE, TERMINAL_BUSY_REPLY, boundConversation, chatsMarkdown, terminalActivity, terminalCommand, transcriptPath, writeChatsFile } from "./terminal.js";
+import { chromeTabsContext } from "./chrome-tabs.js";
 
 const CATALOG_ID = "projects";
 const HOST_ID = "gateway:local";
@@ -222,6 +223,11 @@ export default definePluginEntry({
       }
     };
     api.on("agent_end", () => { writeChats(); });
+    // Automation runs close the browser tabs they opened, so no tab group is left per run (chrome-tabs.js).
+    api.on("before_prompt_build", (_event, ctx) => {
+      const text = chromeTabsContext(ctx?.sessionKey);
+      return text ? { appendSystemContext: text } : undefined;
+    });
     // Also on start and every 10 minutes: chats renamed, archived or adopted without a turn.
     let chatsTimer;
     api.registerService({

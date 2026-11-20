@@ -1,10 +1,12 @@
 {
   "name": "aiwb-claude-bridge",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "description": "Claude Desktop & Code bridge for OpenClaw",
   "openclaw": {
-    "extensions": ["./index.js"]
+    "extensions": [
+      "./index.js"
+    ]
   }
 }
