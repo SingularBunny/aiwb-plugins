@@ -63,15 +63,22 @@ export function automationChatJobId(sessionKey) {
 
 const chatKey = (sessionKey) => String(sessionKey ?? "").trim().replace(/:run:[^:]+$/i, "").toLowerCase();
 
+/**
+ * A heartbeat (the agent's periodic look at its scratch checklist) wakes a chat but is not an automation of it: it
+ * gets neither Run now nor a place in Runs there.
+ */
+export const isHeartbeatJob = (job) =>
+  job?.payload?.skipIfScratchEmpty === true || /^heartbeat(?:-|$)/i.test(String(job?.name ?? ""));
+
 /** Jobs whose runs land in this chat: its owner, jobs targeting it by session, jobs set up from it. Owner first. */
 export function jobsDeliveringToChat(sessionKey, jobs) {
   const key = chatKey(sessionKey);
   const owner = automationChatJobId(key)?.toLowerCase();
   const target = `session:${key}`;
   const delivering = jobs.filter((job) =>
-    String(job.id).toLowerCase() === owner ||
-    (typeof job.sessionTarget === "string" && job.sessionTarget.toLowerCase() === target) ||
-    (job.sessionTarget === "current" && typeof job.sessionKey === "string" && chatKey(job.sessionKey) === key));
+    String(job.id).toLowerCase() === owner || (!isHeartbeatJob(job) && (
+      (typeof job.sessionTarget === "string" && job.sessionTarget.toLowerCase() === target) ||
+      (job.sessionTarget === "current" && typeof job.sessionKey === "string" && chatKey(job.sessionKey) === key))));
   return delivering.toSorted((a, b) =>
     Number(String(b.id).toLowerCase() === owner) - Number(String(a.id).toLowerCase() === owner) ||
     jobName(a).localeCompare(jobName(b)));

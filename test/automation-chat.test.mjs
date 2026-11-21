@@ -51,6 +51,7 @@ test("automation chat: Run now in automation chats for admins; the Runs panel on
         ? { jobs: [
           { id: "owner", name: "Owner", state: { lastRunStatus: "error" } },
           { id: "watch", name: "Watch", sessionTarget: "session:agent:ops:main", state: {} },
+          { id: "hb", name: "heartbeat-ops", sessionTarget: "session:agent:ops:quiet", payload: { skipIfScratchEmpty: true }, state: {} },
         ], hasMore: false }
         : {};
     },
@@ -76,6 +77,9 @@ test("automation chat: Run now in automation chats for admins; the Runs panel on
     assert.equal(panel.available({ sessionKey: "agent:ops:main" }), true);
     assert.deepEqual(run.resolve({ sessionKey: "agent:ops:main" }), { label: "Run now" });
     assert.equal(panel.available({ sessionKey: "agent:ops:other" }), false);
+    // A heartbeat waking a chat is not its automation: no Runs, no Run now.
+    assert.equal(panel.available({ sessionKey: "agent:ops:quiet" }), false);
+    assert.equal(run.resolve({ sessionKey: "agent:ops:quiet" }).hidden, true);
     assert.equal(run.resolve({ sessionKey: "agent:ops:other" }).hidden, true);
     host.connection.canAdmin = false;
     assert.equal(run.resolve({ sessionKey: "agent:ops:cron:owner" }).hidden, true);
