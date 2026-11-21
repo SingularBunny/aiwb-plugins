@@ -73,10 +73,10 @@ test("automation chat: Run now in automation chats for admins; the Runs panel on
   });
   assert.equal(forkActions.get("run-now").placement, "chat-header");
   // There Runs sits beside it, in automation chats only; upstream's header row gets no Runs button.
-  assert.equal(forkActions.get("runs").placement, "chat-header");
-  assert.deepEqual(forkActions.get("runs").resolve({ sessionKey: "agent:ops:cron:owner" }), {});
-  assert.equal(forkActions.get("runs").resolve({ sessionKey: "agent:ops:main" }).hidden, true);
-  assert.equal(actions.has("runs"), false);
+  assert.equal(forkActions.get("open-runs").placement, "chat-header");
+  assert.deepEqual(forkActions.get("open-runs").resolve({ sessionKey: "agent:ops:cron:owner" }), {});
+  assert.equal(forkActions.get("open-runs").resolve({ sessionKey: "agent:ops:main" }).hidden, true);
+  assert.equal(actions.has("open-runs"), false);
   assert.equal(run.resolve({ sessionKey: "agent:main:main" }).hidden, true);
   // The jobs are read once, then the button names the owner's state.
   assert.equal(run.resolve({ sessionKey: "agent:ops:cron:owner" }).hidden, true);

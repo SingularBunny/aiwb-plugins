@@ -94,7 +94,7 @@ All notable changes to the ai-workbench plugins. The format follows
 - Automation chat (aiwb-automation-chat 0.1.2): an ordinary chat that jobs set up from it deliver into also gets
   **Run now** / **Run…** and the **Runs** side panel; only automation chats open Runs by themselves. A heartbeat waking a
   chat (`skipIfScratchEmpty`, or named `heartbeat-…`) is not counted.
-- Automation chat (aiwb-automation-chat 0.2.0): an automation's chat looks as the fork's built-in controls did —
+- Automation chat (aiwb-automation-chat 0.2.1): an automation's chat looks as the fork's built-in controls did —
   **Runs** and **Run now** (icons, Run again after a failure) in the chat header on a Control UI with the fork's
   `chat-header` placement, and the Runs panel with the fork's own markup and styles and Run now at its right. An
   ordinary chat with jobs gets the Runs panel only, with Run now inside it.

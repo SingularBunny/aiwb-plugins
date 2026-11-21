@@ -332,8 +332,9 @@ export default {
     // Ordinary chats with jobs run them from the Runs panel only.
     const chatHeader = host.ui.placements?.includes("chat-header") === true;
     if (chatHeader) {
+      // Contributions sort by key: "open-runs" keeps Runs before Run now, as the fork's header had them.
       host.ui.registerAction({
-        id: "runs",
+        id: "open-runs",
         label: s.runs,
         icon: "history",
         placement: "chat-header",
