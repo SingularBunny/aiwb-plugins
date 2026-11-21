@@ -65,6 +65,13 @@ test("automation chat: Run now in automation chats for admins; the Runs panel on
   plugin.activate(host);
   const run = actions.get("run-now");
   assert.equal(run.placement, "header");
+  // A Control UI with the fork's chat header places it there.
+  const forkActions = new Map();
+  plugin.activate({
+    ...host,
+    ui: { ...host.ui, placements: ["header", "chat-header"], registerAction: (a) => forkActions.set(a.id, a), registerPanel: () => {} },
+  });
+  assert.equal(forkActions.get("run-now").placement, "chat-header");
   assert.equal(run.resolve({ sessionKey: "agent:main:main" }).hidden, true);
   // The jobs are read once, then the button names the owner's state.
   assert.equal(run.resolve({ sessionKey: "agent:ops:cron:owner" }).hidden, true);

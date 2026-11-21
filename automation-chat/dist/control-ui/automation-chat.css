@@ -106,7 +106,7 @@
   gap: 8px;
 }
 
-/* The host renders header actions as direct children of the chat's conversation column, which stretches them across
+/* Builds without the fork's "chat-header" placement: the host renders header actions as direct children of the chat's conversation column, which stretches them across
    the whole chat; keep Run now / Run… a compact button on the right. The OpenClaw fork carries the same rule. */
 .chat-main__conversation-column > openclaw-plugin-contributions > button {
   align-self: flex-end;

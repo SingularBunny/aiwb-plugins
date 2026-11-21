@@ -1,6 +1,6 @@
 {
   "name": "aiwb-automation-chat",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "description": "Automation chat: Run now in the header and the Runs side panel, for any model",

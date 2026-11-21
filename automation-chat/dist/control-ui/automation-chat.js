@@ -298,7 +298,8 @@ export default {
     host.ui.registerAction({
       id: "run-now",
       label: s.runNow,
-      placement: "header",
+      // The fork's chat header holds it like the built-in buttons there; elsewhere, upstream's header row.
+      placement: host.ui.placements?.includes("chat-header") ? "chat-header" : "header",
       resolve: (context) => {
         if (!host.connection?.canAdmin) return { hidden: true };
         // Any chat with jobs delivering into it: its own automation, or jobs set up from an ordinary chat.

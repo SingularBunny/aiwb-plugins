@@ -94,6 +94,8 @@ All notable changes to the ai-workbench plugins. The format follows
 - Automation chat (aiwb-automation-chat 0.1.2): an ordinary chat that jobs set up from it deliver into also gets
   **Run now** / **Run…** and the **Runs** side panel; only automation chats open Runs by themselves. A heartbeat waking a
   chat (`skipIfScratchEmpty`, or named `heartbeat-…`) is not counted.
+- Automation chat (aiwb-automation-chat 0.1.3): **Run now** sits in the chat's own header on a Control UI with the
+  fork's `chat-header` placement; elsewhere it stays a compact button on the right instead of a bar across the chat.
 - Knowledge base (aiwb-shared-memory 0.2.2): notes of any size are written whole. Above 1 MB the approval card and the
   agent's prompt only recommend splitting the note (Obsidian slows down on very large notes); nothing is refused.
 - `aiwb-office` 0.4.1: a file that is not an Office document is refused with 400 even on a machine without
