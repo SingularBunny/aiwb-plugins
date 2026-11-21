@@ -1,87 +1,164 @@
 /* Automation chat: Runs side panel and the Run dialogs. Host tokens: --text, --muted, --border, --ok, --danger. */
-.aiwb-automation-chat {
-  display: grid;
-  gap: 8px;
-  padding: 8px;
+/* The Runs panel: the OpenClaw fork's own panel styles, so the panel looks as it did there. */
+.chat-automation-runs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
-.aiwb-automation-chat__header {
+.chat-automation-runs__header {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
 }
 
-.aiwb-automation-chat__title {
-  flex: 1 1 auto;
+.chat-automation-runs__name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-weight: 600;
+  font-size: var(--control-ui-text-sm);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.aiwb-automation-chat__open,
-.aiwb-automation-chat__note,
-.aiwb-automation-chat__hint {
-  font-size: 12px;
+.chat-automation-runs__open {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
   color: var(--muted);
+  font-size: var(--control-ui-text-xs);
 }
 
-.aiwb-automation-chat__runs {
-  display: grid;
-  gap: 2px;
+.chat-automation-runs__open svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chat-automation-runs__list,
+.chat-automation-runs__transcript {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.chat-automation-runs__list[hidden] {
+  display: none;
+}
+
+.chat-automation-runs__transcript {
+  padding: 8px;
+}
+
+.chat-automation-runs__runs {
   margin: 0;
-  padding: 0;
+  padding: 8px;
   list-style: none;
 }
 
-.aiwb-automation-chat__run {
-  display: grid;
-  gap: 2px;
-  width: 100%;
-  padding: 6px 8px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.aiwb-automation-chat__run:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
-.aiwb-automation-chat__line {
+.chat-automation-runs__run {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.chat-automation-runs__run:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.chat-automation-runs__run-line {
+  display: flex;
+  align-items: baseline;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--control-ui-text-sm);
 }
 
-.aiwb-automation-chat__run[data-run-status="error"] .aiwb-automation-chat__status {
-  color: var(--danger, #e5484d);
+.chat-automation-runs__time {
+  flex: 1;
+  min-width: 0;
 }
 
-.aiwb-automation-chat__job-name {
-  font-size: 11px;
-  font-weight: 600;
+.chat-automation-runs__status,
+.chat-automation-runs__duration {
+  flex-shrink: 0;
   color: var(--muted);
+  font-size: var(--control-ui-text-xs);
 }
 
-.aiwb-automation-chat__time,
-.aiwb-automation-chat__duration {
-  color: var(--muted);
+.chat-automation-runs__run[data-run-status="error"] .chat-automation-runs__status,
+.chat-automation-runs__run-error,
+.chat-automation-runs__error {
+  color: var(--danger);
 }
 
-.aiwb-automation-chat__summary {
-  overflow: hidden;
-  font-size: 12px;
-  color: var(--muted);
+.chat-automation-runs__run-error {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--control-ui-text-xs);
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.chat-automation-runs__note,
+.chat-automation-runs__error {
+  margin: 0;
+  padding: 14px 12px;
+  font-size: var(--control-ui-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.chat-automation-runs__note {
+  color: var(--muted);
+}
+
+.chat-automation-runs__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chat-automation-runs__more {
+  margin: 0 8px 12px;
+}
+
+.chat-automation-runs__job {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--control-ui-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-automation-run {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Run dialogs. */
+.aiwb-automation-chat__hint {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .aiwb-automation-chat__dialog {

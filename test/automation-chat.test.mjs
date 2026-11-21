@@ -72,17 +72,23 @@ test("automation chat: Run now in automation chats for admins; the Runs panel on
     ui: { ...host.ui, placements: ["header", "chat-header"], registerAction: (a) => forkActions.set(a.id, a), registerPanel: () => {} },
   });
   assert.equal(forkActions.get("run-now").placement, "chat-header");
+  // There Runs sits beside it, in automation chats only; upstream's header row gets no Runs button.
+  assert.equal(forkActions.get("runs").placement, "chat-header");
+  assert.deepEqual(forkActions.get("runs").resolve({ sessionKey: "agent:ops:cron:owner" }), {});
+  assert.equal(forkActions.get("runs").resolve({ sessionKey: "agent:ops:main" }).hidden, true);
+  assert.equal(actions.has("runs"), false);
   assert.equal(run.resolve({ sessionKey: "agent:main:main" }).hidden, true);
   // The jobs are read once, then the button names the owner's state.
   assert.equal(run.resolve({ sessionKey: "agent:ops:cron:owner" }).hidden, true);
   return new Promise((resolve) => setImmediate(resolve)).then(() => {
-    assert.deepEqual(run.resolve({ sessionKey: "agent:ops:cron:owner" }), { label: "Run again" });
+    assert.deepEqual(run.resolve({ sessionKey: "agent:ops:cron:owner" }), { label: "Run again", icon: "rotateCcw" });
     const panel = panels.get("runs");
     assert.equal(panel.icon, "calendarClock");
     assert.equal(panel.available({ sessionKey: "agent:ops:cron:owner" }), true);
-    // An ordinary chat that a job set up from it delivers into gets Runs and Run now; other chats do not.
+    // An ordinary chat that a job set up from it delivers into gets the Runs panel (Run now is inside it), no
+    // header button; other chats get neither.
     assert.equal(panel.available({ sessionKey: "agent:ops:main" }), true);
-    assert.deepEqual(run.resolve({ sessionKey: "agent:ops:main" }), { label: "Run now" });
+    assert.equal(run.resolve({ sessionKey: "agent:ops:main" }).hidden, true);
     assert.equal(panel.available({ sessionKey: "agent:ops:other" }), false);
     // A heartbeat waking a chat is not its automation: no Runs, no Run now.
     assert.equal(panel.available({ sessionKey: "agent:ops:quiet" }), false);

@@ -194,6 +194,11 @@ function pickJob(host, s, list) {
   });
 }
 
+function runStatusKind(entry) {
+  if (entry.status === "ok") return entry.completionStatus === "failed" ? "error" : "ok";
+  return entry.status === "error" || entry.status === "skipped" ? entry.status : "unknown";
+}
+
 function statusText(s, entry) {
   if (entry.status === "ok") return entry.completionStatus === "failed" ? s.status.error : s.status.ok;
   return s.status[entry.status] ?? String(entry.status ?? "");
@@ -201,7 +206,7 @@ function statusText(s, entry) {
 
 function formatTime(ms, locale) {
   if (typeof ms !== "number" || !Number.isFinite(ms)) return "";
-  return new Intl.DateTimeFormat(locale || undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
+  return new Intl.DateTimeFormat(locale || undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ms));
 }
 
 function formatDuration(ms) {
@@ -213,7 +218,8 @@ function formatDuration(ms) {
 /** The Runs panel of one chat. */
 function mountRunsPanel(host, s, jobs, container, params) {
   let sessionKey = params.sessionKey;
-  const root = el("div", { class: "aiwb-automation-chat" });
+  // The markup and classes of the OpenClaw fork's own Runs panel, so it looks as it did (automation-chat.css).
+  const root = el("div", { class: "chat-automation-runs aiwb-automation-chat" });
   container.replaceChildren(root);
   let disposed = false;
   let viewer = null;
@@ -223,7 +229,7 @@ function mountRunsPanel(host, s, jobs, container, params) {
   async function load() {
     const current = ++generation;
     closeViewer();
-    root.replaceChildren(el("p", { class: "aiwb-automation-chat__note", role: "status" }, s.loading));
+    root.replaceChildren(el("p", { class: "chat-automation-runs__note", role: "status" }, s.loading));
     const list = jobsDeliveringToChat(sessionKey, (await jobs.reload()) ?? []);
     const pages = await Promise.all(list.map((job) =>
       host.request("cron.runs", { view: "summary", scope: "job", id: job.id, limit: RUNS_PER_JOB, sortDir: "desc" })
@@ -234,7 +240,7 @@ function mountRunsPanel(host, s, jobs, container, params) {
 
   function openRun(entry) {
     closeViewer();
-    const view = el("div", { class: "aiwb-automation-chat__viewer" });
+    const view = el("div", { class: "chat-automation-runs__transcript" });
     root.replaceChildren(view);
     viewer = host.components.mountCronRun(view, {
       run: { jobId: entry.jobId, ...(entry.runId ? { runId: entry.runId } : {}), ...(typeof entry.runAtMs === "number" ? { runAtMs: entry.runAtMs } : {}) },
@@ -242,33 +248,60 @@ function mountRunsPanel(host, s, jobs, container, params) {
     });
   }
 
+  // The same Run now / Run again / Run… as in the chat header, at the right of the panel header.
+  function runButton(list) {
+    if (!host.connection?.canAdmin || list.length === 0) return null;
+    const single = list.length === 1 ? list[0] : null;
+    const label = single ? (isRunning(single) ? s.running : lastRunFailed(single) ? s.runAgain : s.runNow) : s.runMenu;
+    return el("button", {
+      type: "button",
+      class: "btn btn--sm chat-automation-run__button",
+      disabled: Boolean(single && isRunning(single)),
+      onclick: async () => {
+        const job = single ?? await pickJob(host, s, list);
+        if (!job) return;
+        let failure = null;
+        await runJob(host, s, jobs, job).catch((error) => { failure = error; });
+        if (disposed) return;
+        await load();
+        if (failure && !disposed) {
+          root.querySelector(".chat-automation-runs__header")?.after(
+            el("p", { class: "chat-automation-runs__error", role: "alert" },
+              s.notStarted(jobName(job), failure instanceof Error ? failure.message : String(failure))));
+        }
+      },
+    }, label);
+  }
+
   function render(list, runs) {
     const names = new Map(list.map((job) => [job.id, jobName(job)]));
     const several = list.length > 1;
     const owner = list[0];
     const href = owner ? `${host.basePath || ""}/automations?${new URLSearchParams({ job: owner.id })}` : null;
+    const run = runButton(list);
     root.replaceChildren(
-      el("header", { class: "aiwb-automation-chat__header" },
-        el("span", { class: "aiwb-automation-chat__title" }, owner ? jobName(owner) : s.runs),
-        href ? el("a", { class: "aiwb-automation-chat__open", href }, s.openInAutomations) : null,
-        el("button", { type: "button", class: "btn btn--sm", onclick: () => void load() }, s.refresh)),
-      runs.length === 0
-        ? el("p", { class: "aiwb-automation-chat__note", role: "status" }, s.empty)
-        : el("ol", { class: "aiwb-automation-chat__runs" },
-          runs.map((entry) => el("li", {},
-            el("button", {
-              type: "button",
-              class: "aiwb-automation-chat__run",
-              "data-run-status": entry.status === "ok" && entry.completionStatus !== "failed" ? "ok" : (entry.status ?? "unknown"),
-              disabled: !(entry.jobId && (entry.runId || typeof entry.runAtMs === "number")),
-              onclick: () => openRun(entry),
-            },
-            several ? el("span", { class: "aiwb-automation-chat__job-name" }, names.get(entry.jobId) ?? entry.jobName ?? entry.jobId) : null,
-            el("span", { class: "aiwb-automation-chat__line" },
-              el("span", { class: "aiwb-automation-chat__time" }, formatTime(entry.runAtMs ?? entry.ts, host.locale)),
-              el("span", { class: "aiwb-automation-chat__status" }, statusText(s, entry)),
-              el("span", { class: "aiwb-automation-chat__duration" }, formatDuration(entry.durationMs))),
-            entry.summary ? el("span", { class: "aiwb-automation-chat__summary" }, String(entry.summary).slice(0, 300)) : null)))));
+      el("header", { class: "chat-automation-runs__header" },
+        el("span", { class: "chat-automation-runs__name", title: owner ? jobName(owner) : undefined }, owner ? jobName(owner) : s.runs),
+        href ? el("a", { class: "chat-automation-runs__open", href }, s.openInAutomations) : null,
+        run ? el("span", { class: "chat-automation-run" }, run) : null),
+      el("div", { class: "chat-automation-runs__list" },
+        runs.length === 0
+          ? el("p", { class: "chat-automation-runs__note", role: "status" }, s.empty)
+          : el("ol", { class: "chat-automation-runs__runs" },
+            runs.map((entry) => el("li", {},
+              el("button", {
+                type: "button",
+                class: "chat-automation-runs__run",
+                "data-run-status": runStatusKind(entry),
+                disabled: !(entry.jobId && (entry.runId || typeof entry.runAtMs === "number")),
+                onclick: () => openRun(entry),
+              },
+              several ? el("span", { class: "chat-automation-runs__job" }, names.get(entry.jobId) ?? entry.jobName ?? entry.jobId) : null,
+              el("span", { class: "chat-automation-runs__run-line" },
+                el("span", { class: "chat-automation-runs__time" }, formatTime(entry.runAtMs ?? entry.ts, host.locale)),
+                el("span", { class: "chat-automation-runs__status" }, statusText(s, entry)),
+                formatDuration(entry.durationMs) ? el("span", { class: "chat-automation-runs__duration" }, formatDuration(entry.durationMs)) : null),
+              entry.error ? el("span", { class: "chat-automation-runs__run-error" }, String(entry.error).slice(0, 500)) : null))))));
   }
 
   // A finished run of any job refreshes the list (Gateway "cron" events).
@@ -295,19 +328,33 @@ export default {
     const jobs = createJobs(host);
     host.onEvent?.("cron", () => { jobs.forget(); host.ui.invalidate(); });
 
+    // In an automation's own chat, as the fork's header did: Runs opens the panel, then Run now / Run again / Run….
+    // Ordinary chats with jobs run them from the Runs panel only.
+    const chatHeader = host.ui.placements?.includes("chat-header") === true;
+    if (chatHeader) {
+      host.ui.registerAction({
+        id: "runs",
+        label: s.runs,
+        icon: "history",
+        placement: "chat-header",
+        resolve: (context) => (automationChatJobId(context.sessionKey) ? {} : { hidden: true }),
+        run: (context) => host.ui.openPanel(PANEL_ID, { sessionKey: context.sessionKey }),
+      });
+    }
     host.ui.registerAction({
       id: "run-now",
       label: s.runNow,
+      icon: "play",
       // The fork's chat header holds it like the built-in buttons there; elsewhere, upstream's header row.
-      placement: host.ui.placements?.includes("chat-header") ? "chat-header" : "header",
+      placement: chatHeader ? "chat-header" : "header",
       resolve: (context) => {
-        if (!host.connection?.canAdmin) return { hidden: true };
-        // Any chat with jobs delivering into it: its own automation, or jobs set up from an ordinary chat.
+        if (!automationChatJobId(context.sessionKey) || !host.connection?.canAdmin) return { hidden: true };
         const list = jobs.forChat(context.sessionKey);
         if (!list || list.length === 0) return { hidden: true };
-        if (list.length > 1) return { label: s.runMenu };
+        if (list.length > 1) return { label: s.runMenu, icon: "play" };
         const job = list[0];
-        return isRunning(job) ? { label: s.running, disabled: true } : { label: lastRunFailed(job) ? s.runAgain : s.runNow };
+        if (isRunning(job)) return { label: s.running, icon: "play", disabled: true };
+        return lastRunFailed(job) ? { label: s.runAgain, icon: "rotateCcw" } : { label: s.runNow, icon: "play" };
       },
       run: async (context) => {
         const list = jobs.forChat(context.sessionKey) ?? [];
