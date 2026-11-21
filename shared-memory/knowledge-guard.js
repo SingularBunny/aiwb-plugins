@@ -30,7 +30,10 @@ export function writtenFiles(toolName, params, { base, derivedPaths } = {}) {
     if (typeof p !== "string" || !p) return out;
     const file = abs(p);
     if (!file) return out;
-    if (toolName === "write") out.push({ file, kind: existsSync(file) ? "replace" : "create", detail: clip(params.content) });
+    if (toolName === "write") {
+      out.push({ file, kind: existsSync(file) ? "replace" : "create", detail: clip(params.content),
+        bytes: Buffer.byteLength(String(params.content ?? "")) });
+    }
     else {
       const edits = Array.isArray(params.edits) ? params.edits : [{ oldText: params.old_string, newText: params.new_string }];
       out.push({ file, kind: "edit", detail: edits.map((e) => `- ${clip(e.oldText ?? e.old_string)}\n+ ${clip(e.newText ?? e.new_string)}`).join("\n\n") });
@@ -46,6 +49,13 @@ export function writtenFiles(toolName, params, { base, derivedPaths } = {}) {
   }
   return out;
 }
+
+/**
+ * A note above this size is written as asked, with a recommendation to split it: Obsidian has no hard limit, but users
+ * report indexing slowdowns past about 1 MB and freezes at several MB (forum.obsidian.md, "Improve support for very
+ * large notes"). A recommendation, never a refusal.
+ */
+export const LARGE_NOTE_BYTES = 1024 * 1024;
 
 /** The Gateway refuses an approval whose title exceeds 80 or description 512 characters. */
 export const APPROVAL_TITLE_MAX = 80;
@@ -71,7 +81,11 @@ export function knowledgeApproval({ toolName, params, derivedPaths, agentId, bas
   if (!files.length) return undefined;
   const verb = { create: "Create", replace: "Replace", edit: "Edit", delete: "Delete" };
   // Every file's action and path come first, so a long change cannot push a path out of the bounded card.
-  const targets = files.map((f) => `${verb[f.kind]} ${f.file}`).join("\n");
+  const large = files.filter((f) => f.bytes > LARGE_NOTE_BYTES);
+  const targets = [
+    ...files.map((f) => `${verb[f.kind]} ${f.file}`),
+    ...large.map((f) => `Large note: ${(f.bytes / 1024 / 1024).toFixed(1)} MB. Obsidian may slow down above about 1 MB; splitting it is recommended, not required.`),
+  ].join("\n");
   const details = files.map((f) => f.detail).filter(Boolean).join("\n\n---\n\n");
   const description = boundApprovalText(details ? `${targets}\n\n${details}` : targets, APPROVAL_DESCRIPTION_MAX);
   return {

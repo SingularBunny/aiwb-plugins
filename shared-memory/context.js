@@ -58,6 +58,8 @@ export function knowledgeContext(knowledge, agentId, knowledgeText) {
     "Before changing anything there, say in the chat which notes you will create, edit, move or delete and what changes, and wait",
     "for the user's yes. Write there only with the file tools (write, edit), never with shell commands: each write shows the user",
     "an approval card. Keep memory facts (about the user and how to work) in memory, not here.",
+    "A note may be of any size; write it whole. Obsidian may slow down on notes above about 1 MB, so for longer material",
+    "splitting into linked notes is recommended where it reads naturally, never required.",
     ...(copies.length ? [`PDF and Office files there are found by memory search through Markdown text copies in ${copies.join(", ")}:`,
       "each copy names its original file at the top. Read and cite the original; never edit the copies, they are rebuilt from the originals."] : []),
   ].join("\n");

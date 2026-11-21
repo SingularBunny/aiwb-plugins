@@ -91,6 +91,8 @@ All notable changes to the ai-workbench plugins. The format follows
 - Knowledge base (aiwb-shared-memory 0.2.2) and plan mode (aiwb-plan 0.3.1): an approval card for a long note, plan or
   command is cut to the Gateway's limits (title 80, description 512 characters) with a note of what was left out, instead
   of the Gateway refusing the request and the write failing. Every changed note's path comes before the change text.
+- Knowledge base (aiwb-shared-memory 0.2.2): notes of any size are written whole. Above 1 MB the approval card and the
+  agent's prompt only recommend splitting the note (Obsidian slows down on very large notes); nothing is refused.
 - `aiwb-office` 0.4.1: a file that is not an Office document is refused with 400 even on a machine without
   LibreOffice (it got 503 there, as if a converter could have helped).
 - `aiwb-claude-bridge` 0.3.2: state files (adoption, moves, pending shares, folder order, running marks, memory

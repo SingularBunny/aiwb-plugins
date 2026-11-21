@@ -1122,3 +1122,19 @@ test("knowledge base: a long note fits the Gateway's approval limits and keeps e
   assert.ok(patch.description.length <= APPROVAL_DESCRIPTION_MAX);
   assert.ok(patch.description.startsWith(`Create ${vault}/a.md\nCreate ${vault}/b.md\n\n`));
 });
+
+test("knowledge base: a note of any size is written; above 1 MB the card only recommends splitting", async () => {
+  const { mkdtempSync } = await import("node:fs");
+  const os = await import("node:os");
+  const { knowledgeApproval, APPROVAL_DESCRIPTION_MAX } = await import("../shared-memory/knowledge-guard.js");
+  const { knowledgeContext } = await import("../shared-memory/context.js");
+  const vault = mkdtempSync(path.join(os.tmpdir(), "vault-"));
+  const ask = (content) => knowledgeApproval({ toolName: "write", params: { path: path.join(vault, "big.md"), content },
+    agentId: "main", knowledge: { "*": [vault] }, allowedSessions: new Set(), sessionKey: "s1" }).requireApproval;
+  const big = ask("x".repeat(3 * 1024 * 1024));
+  assert.deepEqual(big.allowedDecisions, ["allow-once", "allow-always", "deny"]);
+  assert.match(big.description, /Large note: 3\.0 MB\..*recommended, not required/);
+  assert.ok(big.description.length <= APPROVAL_DESCRIPTION_MAX);
+  assert.doesNotMatch(ask("small").description, /Large note/);
+  assert.match(knowledgeContext({ "*": [vault] }, "main"), /any size; write it whole.*\n.*never required/);
+});
