@@ -47,6 +47,19 @@ export function writtenFiles(toolName, params, { base, derivedPaths } = {}) {
   return out;
 }
 
+/** The Gateway refuses an approval whose title exceeds 80 or description 512 characters. */
+export const APPROVAL_TITLE_MAX = 80;
+export const APPROVAL_DESCRIPTION_MAX = 512;
+
+/** Cuts text to max characters, saying how much was left out, so the approval card is never refused. */
+export function boundApprovalText(text, max) {
+  const value = String(text ?? "");
+  if (value.length <= max) return value;
+  const note = (left) => `\n… (${left} more characters)`;
+  let keep = max - note(value.length).length;
+  return `${value.slice(0, keep).trimEnd()}${note(value.length - keep)}`;
+}
+
 /**
  * The before_tool_call decision: undefined when the call writes nothing in the agent's knowledge folders or the
  * session already chose "allow always"; otherwise a requireApproval naming the files and what changes.
@@ -57,10 +70,13 @@ export function knowledgeApproval({ toolName, params, derivedPaths, agentId, bas
   const files = writtenFiles(toolName, params, { base, derivedPaths }).filter((f) => dirs.some((d) => inside(f.file, d)));
   if (!files.length) return undefined;
   const verb = { create: "Create", replace: "Replace", edit: "Edit", delete: "Delete" };
-  const description = files.map((f) => `${verb[f.kind]} ${f.file}\n\n${f.detail}`).join("\n\n---\n\n");
+  // Every file's action and path come first, so a long change cannot push a path out of the bounded card.
+  const targets = files.map((f) => `${verb[f.kind]} ${f.file}`).join("\n");
+  const details = files.map((f) => f.detail).filter(Boolean).join("\n\n---\n\n");
+  const description = boundApprovalText(details ? `${targets}\n\n${details}` : targets, APPROVAL_DESCRIPTION_MAX);
   return {
     requireApproval: {
-      title: files.length === 1 ? `Knowledge base: ${verb[files[0].kind].toLowerCase()} ${path.basename(files[0].file)}` : `Knowledge base: change ${files.length} notes`,
+      title: boundApprovalText(files.length === 1 ? `Knowledge base: ${verb[files[0].kind].toLowerCase()} ${path.basename(files[0].file)}` : `Knowledge base: change ${files.length} notes`, APPROVAL_TITLE_MAX),
       description,
       severity: "info",
       allowedDecisions: ["allow-once", "allow-always", "deny"],

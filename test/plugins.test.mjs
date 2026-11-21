@@ -1102,3 +1102,23 @@ test("office preview: a long sheet becomes its first rows with a note; CSV quote
   assert.ok(html.includes("<td>&lt;1&gt;</td>") && !html.includes("row2"));
   assert.ok(html.includes("<h2>Short</h2>") && !html.slice(html.indexOf("Short")).includes("Preview:"));
 });
+
+test("knowledge base: a long note fits the Gateway's approval limits and keeps every path", async () => {
+  const { mkdtempSync, mkdirSync } = await import("node:fs");
+  const os = await import("node:os");
+  const { knowledgeApproval, APPROVAL_DESCRIPTION_MAX, APPROVAL_TITLE_MAX } = await import("../shared-memory/knowledge-guard.js");
+  const vault = mkdtempSync(path.join(os.tmpdir(), "vault-"));
+  mkdirSync(path.join(vault, "family"));
+  const name = `${"Saturday evening plan ".repeat(5)}.md`;
+  const card = knowledgeApproval({ toolName: "write", params: { path: path.join(vault, "family", name), content: "plan line\n".repeat(400) },
+    agentId: "main", knowledge: { "*": [vault] }, allowedSessions: new Set(), sessionKey: "s1" }).requireApproval;
+  assert.ok(card.description.length <= APPROVAL_DESCRIPTION_MAX);
+  assert.ok(card.title.length <= APPROVAL_TITLE_MAX);
+  assert.ok(card.description.startsWith(`Create ${path.join(vault, "family", name)}\n\nplan line`));
+  assert.match(card.description, /… \(\d+ more characters\)$/);
+
+  const patch = knowledgeApproval({ toolName: "apply_patch", agentId: "main", knowledge: { "*": [vault] }, allowedSessions: new Set(), sessionKey: "s2",
+    params: { input: `*** Begin Patch\n*** Add File: ${vault}/a.md\n${"+x\n".repeat(400)}*** Add File: ${vault}/b.md\n+y\n*** End Patch` } }).requireApproval;
+  assert.ok(patch.description.length <= APPROVAL_DESCRIPTION_MAX);
+  assert.ok(patch.description.startsWith(`Create ${vault}/a.md\nCreate ${vault}/b.md\n\n`));
+});

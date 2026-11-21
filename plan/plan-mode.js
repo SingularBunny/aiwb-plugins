@@ -112,6 +112,19 @@ export function planCommand(sessions, sessionKey, args) {
   return "Plan mode is on: the agent researches and presents a plan; files stay unchanged until you approve it.";
 }
 
+/** The Gateway refuses an approval whose title exceeds 80 or description 512 characters. */
+export const APPROVAL_TITLE_MAX = 80;
+export const APPROVAL_DESCRIPTION_MAX = 512;
+
+/** Cuts text to max characters, saying how much was left out, so the approval card is never refused. */
+export function boundApprovalText(text, max) {
+  const value = String(text ?? "");
+  if (value.length <= max) return value;
+  const note = (left) => `\n… (${left} more characters)`;
+  let keep = max - note(value.length).length;
+  return `${value.slice(0, keep).trimEnd()}${note(value.length - keep)}`;
+}
+
 /** The before_tool_call decision for a chat in plan mode; undefined lets the call through. */
 export function planToolDecision(sessions, { toolName, params, sessionKey }) {
   if (!sessions.has(sessionKey)) return undefined;
@@ -122,7 +135,7 @@ export function planToolDecision(sessions, { toolName, params, sessionKey }) {
     return {
       requireApproval: {
         title: "Approve the plan?",
-        description: plan,
+        description: boundApprovalText(plan, APPROVAL_DESCRIPTION_MAX),
         severity: "info",
         allowedDecisions: ["allow-once", "deny"],
         onResolution: (decision) => {
@@ -137,8 +150,8 @@ export function planToolDecision(sessions, { toolName, params, sessionKey }) {
       : JSON.stringify(params ?? {}).slice(0, 500);
     return {
       requireApproval: {
-        title: ASK_TITLES[toolName] ?? `Plan mode: allow ${toolName}?`,
-        description: what || toolName,
+        title: boundApprovalText(ASK_TITLES[toolName] ?? `Plan mode: allow ${toolName}?`, APPROVAL_TITLE_MAX),
+        description: boundApprovalText(what || toolName, APPROVAL_DESCRIPTION_MAX),
         severity: "warning",
         allowedDecisions: ["allow-once", "deny"],
       },

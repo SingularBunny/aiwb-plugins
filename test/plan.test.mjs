@@ -134,3 +134,14 @@ test("plan: no button where the host has no composer-controls placement", async 
   ui.activate({ locale: "en", request: async () => ({}), onEvent: () => {}, ui: { registerAction: (a) => actions.push(a), invalidate: () => {} } });
   assert.equal(actions.length, 0);
 });
+
+test("plan mode: a long plan and a long command fit the Gateway's approval limits", () => {
+  const sessions = new PlanSessions(fresh());
+  sessions.set("agent:main:chat", true);
+  const decide = (toolName, params) => planToolDecision(sessions, { toolName, params, sessionKey: "agent:main:chat" });
+  const plan = decide(EXIT_TOOL, { plan: "1. Step\n".repeat(200) }).requireApproval;
+  assert.ok(plan.description.length <= 512);
+  assert.ok(plan.description.startsWith("1. Step"));
+  const exec = decide("exec", { command: "echo ".repeat(300) }).requireApproval;
+  assert.ok(exec.description.length <= 512);
+});
