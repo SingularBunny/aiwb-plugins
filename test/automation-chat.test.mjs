@@ -47,7 +47,12 @@ test("automation chat: Run now in automation chats for admins; the Runs panel on
     onEvent: () => () => {},
     request: async (method) => {
       requests.push(method);
-      return method === "cron.list" ? { jobs: [{ id: "owner", name: "Owner", state: { lastRunStatus: "error" } }], hasMore: false } : {};
+      return method === "cron.list"
+        ? { jobs: [
+          { id: "owner", name: "Owner", state: { lastRunStatus: "error" } },
+          { id: "watch", name: "Watch", sessionTarget: "session:agent:ops:main", state: {} },
+        ], hasMore: false }
+        : {};
     },
     ui: {
       invalidate: () => {},
@@ -67,7 +72,11 @@ test("automation chat: Run now in automation chats for admins; the Runs panel on
     const panel = panels.get("runs");
     assert.equal(panel.icon, "calendarClock");
     assert.equal(panel.available({ sessionKey: "agent:ops:cron:owner" }), true);
-    assert.equal(panel.available({ sessionKey: "agent:ops:main" }), false);
+    // An ordinary chat that a job set up from it delivers into gets Runs and Run now; other chats do not.
+    assert.equal(panel.available({ sessionKey: "agent:ops:main" }), true);
+    assert.deepEqual(run.resolve({ sessionKey: "agent:ops:main" }), { label: "Run now" });
+    assert.equal(panel.available({ sessionKey: "agent:ops:other" }), false);
+    assert.equal(run.resolve({ sessionKey: "agent:ops:other" }).hidden, true);
     host.connection.canAdmin = false;
     assert.equal(run.resolve({ sessionKey: "agent:ops:cron:owner" }).hidden, true);
   });

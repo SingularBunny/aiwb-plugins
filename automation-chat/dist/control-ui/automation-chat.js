@@ -1,10 +1,10 @@
 // Automation chat for the OpenClaw Control UI (native plugin view, hand-written, no build step). In the chat of an
-// automation (`agent:<agent>:cron:<job>`):
+// automation (`agent:<agent>:cron:<job>`), and in any other chat that automations deliver into (jobs set up from it):
 // - Run now / Run again in the chat header starts a job that delivers into the chat, like Automations → Run, after a
 //   confirmation; with several jobs the button is "Run…" and asks which one.
 // - The Runs side panel lists the latest runs of those jobs: the automation that owns the chat, jobs that target it
 //   by session and jobs set up from it. A run opens in place in the host's run viewer (`cron.history`).
-// - Runs opens by itself the first time a page shows an automation chat.
+// - Runs opens by itself the first time a page shows an automation chat; in other chats it waits in the side panel menu.
 // The jobs that deliver into a chat follow the same rule as the OpenClaw fork's own code did (run-history-chat.ts).
 // Needs the fork's plugin points: `host.components.mountCronRun` and panels with `available`; without them the plugin
 // adds nothing, so an older build keeps its own controls.
@@ -293,7 +293,8 @@ export default {
       label: s.runNow,
       placement: "header",
       resolve: (context) => {
-        if (!automationChatJobId(context.sessionKey) || !host.connection?.canAdmin) return { hidden: true };
+        if (!host.connection?.canAdmin) return { hidden: true };
+        // Any chat with jobs delivering into it: its own automation, or jobs set up from an ordinary chat.
         const list = jobs.forChat(context.sessionKey);
         if (!list || list.length === 0) return { hidden: true };
         if (list.length > 1) return { label: s.runMenu };
@@ -311,7 +312,9 @@ export default {
       id: PANEL_ID,
       label: s.runs,
       icon: "calendarClock",
-      available: (session) => Boolean(automationChatJobId(session.sessionKey)) && Boolean(host.connection?.canRead ?? true),
+      available: (session) =>
+        Boolean(host.connection?.canRead ?? true) &&
+        (Boolean(automationChatJobId(session.sessionKey)) || (jobs.forChat(session.sessionKey)?.length ?? 0) > 0),
       mount: (container, view) => mountRunsPanel(host, s, jobs, container, view.props),
     });
 
