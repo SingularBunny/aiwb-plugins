@@ -164,7 +164,14 @@
 .aiwb-automation-chat__dialog {
   display: grid;
   gap: 10px;
-  width: min(520px, calc(100vw - 48px));
+  /* The host dialog is a bare frame (its width is --openclaw-modal-width); the card is ours, as the
+     Control UI's own dialogs draw theirs (.exec-approval-card). */
+  box-sizing: border-box;
+  width: 100%;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--card, var(--bg));
 }
 
 .aiwb-automation-chat__jobs {

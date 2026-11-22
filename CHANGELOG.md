@@ -94,6 +94,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-chat-tools` 0.3.1, `aiwb-automation-chat` 0.2.2: the Forget a topic and Run dialogs drew their content wider than
+  the host dialog and without a background, so the buttons were cut off and the text sat on the backdrop. The content
+  now fills the host dialog as a card, and Forget a topic widens the dialog to 680px through `--openclaw-modal-width`.
 - `aiwb-chat-tools` 0.1.1: the Forget a topic dialog names the embedding model it uses as the one memory search is
   configured with (a local one with `memory.search.provider: "local"`), instead of promising a local model.
 - `aiwb-claude-bridge` 0.3.4: moving a used chat to its folder's agent from the chat menu took 15 seconds and left the

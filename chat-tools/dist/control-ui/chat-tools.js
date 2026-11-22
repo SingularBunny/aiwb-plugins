@@ -107,6 +107,8 @@ function openDialog(host, label, build) {
     handle = host.components.mountDialog(container, {
       label,
       className: "aiwb-chat-tools__dialog",
+      // The host dialog is 540px wide by default; the lists of Forget a topic need more room.
+      style: "--openclaw-modal-width: 680px",
       content,
       onCancel: () => {
         finish(null);

@@ -49,3 +49,21 @@ test("chat tools: Russian labels follow the Control UI locale", () => {
   assert.equal(actions.get("forget-topic").label, "Забыть тему…");
   assert.equal(actions.get("reset").label, "Сбросить чат…");
 });
+
+test("chat tools: the dialog card fills the host dialog and draws its own background", async () => {
+  const { readFile } = await import("node:fs/promises");
+  // The host dialog is a bare frame of --openclaw-modal-width; a card wider than it pushes the
+  // buttons out of view, and without a background the text sits on the backdrop (both seen live).
+  for (const [file, selector] of [
+    ["chat-tools/dist/control-ui/chat-tools.css", ".aiwb-chat-tools {"],
+    ["automation-chat/dist/control-ui/automation-chat.css", ".aiwb-automation-chat__dialog {"],
+  ]) {
+    const css = await readFile(new URL(`../${file}`, import.meta.url), "utf8");
+    const block = css.slice(css.indexOf(selector), css.indexOf("}", css.indexOf(selector)));
+    assert.match(block, /width: 100%;/, file);
+    assert.doesNotMatch(block, /width: min\(/, file);
+    assert.match(block, /background: var\(--card/, file);
+  }
+  const js = await readFile(new URL("../chat-tools/dist/control-ui/chat-tools.js", import.meta.url), "utf8");
+  assert.match(js, /style: "--openclaw-modal-width: \d+px"/);
+});
