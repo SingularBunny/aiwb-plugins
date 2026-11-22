@@ -259,7 +259,17 @@ async function forgetTopic(host, s, target) {
   const picks = await pickItems(host, s, found.topic, found.candidates, found.memory, found.commits, found.reviews);
   if (!picks) return;
   if (picks.entryIds.length + picks.memory.length > 0) {
-    await host.request("chat.forget.apply", { ...target, topic: found.topic, entryIds: picks.entryIds, memory: picks.memory });
+    const applied = await host.request("chat.forget.apply", { ...target, topic: found.topic, entryIds: picks.entryIds, memory: picks.memory });
+    const done = applied?.forgotten?.length ?? picks.entryIds.length;
+    if (done < picks.entryIds.length) {
+      await openDialog(host, s.forgetTitle, (content, finish) => {
+        content.append(
+          el("p", { class: "aiwb-chat-tools__note" }, s.partial(done, picks.entryIds.length)),
+          el("div", { class: "aiwb-chat-tools__actions" },
+            el("button", { type: "button", class: "btn primary", onclick: () => finish(true) }, "OK")),
+        );
+      });
+    }
   }
   if (picks.reviews.length) {
     const cleaned = await host.request("chat.forget.review.apply", {

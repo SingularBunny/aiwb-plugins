@@ -94,6 +94,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-chat-tools` 0.3.2: Forget a topic says how many chat entries were forgotten when some could not be marked
+  (live: 1 of 56; the fork now waits for the transcript projection between marks).
 - `aiwb-chat-tools` 0.3.1, `aiwb-automation-chat` 0.2.2: the Forget a topic and Run dialogs drew their content wider than
   the host dialog and without a background, so the buttons were cut off and the text sat on the backdrop. The content
   now fills the host dialog as a card, and Forget a topic widens the dialog to 680px through `--openclaw-modal-width`.
