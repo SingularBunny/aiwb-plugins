@@ -88,6 +88,8 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-chat-tools` 0.1.1: the Forget a topic dialog names the embedding model it uses as the one memory search is
+  configured with (a local one with `memory.search.provider: "local"`), instead of promising a local model.
 - `aiwb-claude-bridge` 0.3.4: moving a used chat to its folder's agent from the chat menu took 15 seconds and left the
   new chat a draft and the old one in place on OpenClaw 2026.11.6, which checks the operator's authority when a chat is
   shared. The fork Gateway now shares the moved chat as the operator, then archives the old one; the plugin only

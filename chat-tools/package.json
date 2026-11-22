@@ -1,6 +1,6 @@
 {
   "name": "aiwb-chat-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Chat menu items for any model: forget a topic, new chat, learn a skill, reset the chat",

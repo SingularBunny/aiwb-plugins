@@ -1,7 +1,7 @@
 // Chat tools for the OpenClaw Control UI (native plugin view, hand-written, no build step). Items in a chat's menu
 // (placement "session": the chat ⋯ menu and the session menu in the sidebar), for any model:
 // - Forget a topic…: the Gateway ranks the chat's turns and the agent's memory paragraphs against a topic with the
-//   local embedding model (chat.forget.find, OpenClaw fork); the user ticks what to forget and chat.forget.apply
+//   embedding model memory search is configured with (chat.forget.find, OpenClaw fork); the user ticks what to forget and chat.forget.apply
 //   leaves those turns out of every model context and removes the ticked memory paragraphs.
 // - New chat, Learn a skill from this chat (/learn), Reset chat… (/reset, after a confirm).
 
@@ -11,7 +11,7 @@ const STRINGS = {
   en: {
     forgetMenu: "Forget a topic…",
     forgetTitle: "Forget a topic",
-    topicLabel: "What should the chat forget? It is found with the local embedding model; no chat model sees this.",
+    topicLabel: "What should the chat forget? It is found with the embedding model memory search uses; no chat model sees this.",
     find: "Find",
     finding: "Searching…",
     nothingFound: "Nothing in this chat to forget.",
@@ -34,7 +34,7 @@ const STRINGS = {
   ru: {
     forgetMenu: "Забыть тему…",
     forgetTitle: "Забыть тему",
-    topicLabel: "Что чат должен забыть? Поиск идёт локальной моделью эмбеддингов, основная модель этого не видит.",
+    topicLabel: "Что чат должен забыть? Поиск идёт моделью эмбеддингов поиска по памяти, чат-модель этого не видит.",
     find: "Найти",
     finding: "Ищу…",
     nothingFound: "В этом чате нечего забывать.",
