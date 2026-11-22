@@ -19,7 +19,7 @@ each plugin with `openclaw plugins install --link`.
 | `groups/` | `aiwb-groups` | Groups: several agents in one conversation, a manager picks who speaks next; group chats in ordinary chats (agents, ACP agents and models as participants, asked by @name) |
 | `plan/` | `aiwb-plan` | Plan mode for any model: `/plan` or the Plan toggle in the Control UI composer, then research and an approved plan before any change |
 | `automation-chat/` | `aiwb-automation-chat` | In an automation's chat: Run now in the header and a Runs side panel with the latest runs (needs the fork's run viewer for plugins) |
-| `chat-tools/` | `aiwb-chat-tools` | Items in a chat's ⋯ menu: Forget a topic (with the fork's `chat.forget` methods), New chat, Learn a skill, Reset chat |
+| `chat-tools/` | `aiwb-chat-tools` | Items in a chat's ⋯ menu: Forget a topic (with the fork's `chat.forget` methods; for admins also commit messages of the chat's repositories and its GitHub pull request texts, force-push only on confirmation), New chat, Learn a skill, Reset chat |
 | `gpu/` | `aiwb-gpu` | GPU load and memory: a line in the chat header and a side panel with the models and processes that hold GPU memory (NVIDIA, `nvidia-smi`) |
 | `mcp/scheduled-tasks/` | MCP `scheduled-tasks` | scheduled tasks with Claude Desktop tools on top of `openclaw automations` |
 
