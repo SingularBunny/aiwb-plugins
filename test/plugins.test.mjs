@@ -806,6 +806,19 @@ test("claude bridge move: chat goes to the target agent with history, source arc
     assert.match(kept.warning, /stays a draft \(forbidden\); the old chat is kept/);
     assert.match(denied.warnings[0], /stays a draft.*failed 1 times: forbidden; the source chat .* is kept/);
     assert.ok(!fs.existsSync(pendingFile));
+    // The Gateway shares as the caller (fork, callerShares): no share from the plugin, `share` and `archive`
+    // go back to the Gateway, and the next adoption pass shares again should the Gateway's share fail.
+    const viaGateway = flakyShare(Infinity, "Session access facts are unavailable");
+    const byCaller = await moveChat({ ...base, request: viaGateway.request, newId: () => "copy-share-caller", row, source: session,
+      pendingFile, callerShares: true });
+    assert.equal(viaGateway.shares, 0);
+    assert.deepEqual(byCaller.share, { key: byCaller.sessionKey });
+    assert.deepEqual(byCaller.archive, { key: session.sessionKey, expectedSessionId: "old-id" });
+    assert.equal(byCaller.warning, undefined);
+    const queued = JSON.parse(fs.readFileSync(pendingFile, "utf8"))[byCaller.sessionKey];
+    assert.equal(queued.agentId, "beta");
+    assert.equal(queued.archive, undefined);
+    fs.rmSync(pendingFile);
     // An existing file is never overwritten.
     assert.throws(() => copyConversation(src, path.join(claudeProjectDir(projectsDir, beta), "copy-1.jsonl"), "fork-1", "copy-1"));
 

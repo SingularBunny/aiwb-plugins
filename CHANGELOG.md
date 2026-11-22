@@ -88,6 +88,10 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Fixed
 
+- `aiwb-claude-bridge` 0.3.4: moving a used chat to its folder's agent from the chat menu took 15 seconds and left the
+  new chat a draft and the old one in place on OpenClaw 2026.11.6, which checks the operator's authority when a chat is
+  shared. The fork Gateway now shares the moved chat as the operator, then archives the old one; the plugin only
+  queues a repeat share for its next adoption pass.
 - Knowledge base (aiwb-shared-memory 0.2.2) and plan mode (aiwb-plan 0.3.1): an approval card for a long note, plan or
   command is cut to the Gateway's limits (title 80, description 512 characters) with a note of what was left out, instead
   of the Gateway refusing the request and the write failing. Every changed note's path comes before the change text.

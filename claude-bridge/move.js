@@ -62,13 +62,17 @@ export function copyConversation(file, target, from, to) {
  *   folderCwd(group) → working folder of a tree folder; agentOf(group) → its agent;
  *   running(sessionKey) → whether a turn is in progress; registryFile — adopted chats (adopt.js);
  *   newId() → id of the copied conversation (a UUID, as Claude Code names its conversations);
- *   pendingFile — sessions not shared yet (visibility.js), retried with the source's archive later.
+ *   pendingFile — sessions not shared yet (visibility.js), retried with the source's archive later;
+ *   callerShares — the Gateway shares the new session as the operator who moved the chat (OpenClaw fork:
+ *     sessions.catalog.move passes it). OpenClaw 2026.11.6 checks the operator's authority when sharing,
+ *     which a plugin request made inside the operator's request does not carry, so the plugin's own
+ *     share fails there. The move then returns `share` and the Gateway archives the source after it.
  * Returns { threadId, sessionKey } of the row in the target folder, `archive` — the source session the
  * Gateway archives, only when the new session is shared — and `warning` when it is not (shown in the UI).
  */
 export async function moveChat({ row, source, group, claudeChat, request, bind, transcriptFile, folderCwd, agentOf,
   projectsDir, running = () => false, registryFile, pendingFile, newId = randomUUID, now = Date.now, shareDelays, sleep,
-  log = () => {}, warn = log }) {
+  callerShares = false, log = () => {}, warn = log }) {
   if (!row) throw fail("no such chat in the tree", "NOT_FOUND");
   if (row.customGroup === group) throw fail(`the chat is already in ${group}`);
   if (source && isMainKey(source.sessionKey)) throw fail("the main chat of a project stays with its agent");
@@ -109,7 +113,13 @@ export async function moveChat({ row, source, group, claudeChat, request, bind, 
   }
   // An imported session starts as a draft (the ghost mark in the sidebar) until it is shared. Right after the
   // import the Gateway may not have its storage ready: retried with backoff (visibility.js).
-  const shared = await shareSession({ request, sessionKey, ...(shareDelays ? { delays: shareDelays } : {}), ...(sleep ? { sleep } : {}) });
+  if (callerShares && pendingFile) {
+    // Should the Gateway's share fail, the next adoption pass shares it (idempotent when it succeeded).
+    addPending(pendingFile, { sessionKey, agentId, error: "shared by the Gateway as the caller", now: now() });
+  }
+  const shared = callerShares
+    ? { ok: true }
+    : await shareSession({ request, sessionKey, ...(shareDelays ? { delays: shareDelays } : {}), ...(sleep ? { sleep } : {}) });
 
   // 4. The source session goes to the archive, only once the copy is shared: never two diverging copies with
   // one hidden. The Gateway does it (OpenClaw fork, sessions.catalog.move) as the operator who moved the chat:
@@ -142,5 +152,6 @@ export async function moveChat({ row, source, group, claudeChat, request, bind, 
   const registry = readJson(registryFile);
   for (const id of new Set([chatId, claudeId, copyId, ...related])) registry[id] = { agentId, sessionKey };
   writeJson(registryFile, registry);
-  return { threadId: `${SESSION_ROW}${sessionKey}`, sessionKey, ...(archive ? { archive } : {}), ...(warning ? { warning } : {}) };
+  return { threadId: `${SESSION_ROW}${sessionKey}`, sessionKey, ...(callerShares ? { share: { key: sessionKey } } : {}),
+    ...(archive ? { archive } : {}), ...(warning ? { warning } : {}) };
 }

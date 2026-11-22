@@ -436,7 +436,7 @@ export default definePluginEntry({
     };
     // A chat dropped on another project folder moves to that project's agent (move.js). Runs between
     // adoption passes: both import into agents and write the registry of adopted chats.
-    provider.move = async ({ threadId, group, threadIds }) => {
+    provider.move = async ({ threadId, group, threadIds, callerShares }) => {
       const blocker = await adoptionBlocker();
       if (blocker) throw Object.assign(new Error(`moving chats needs adoption in the Gateway: ${blocker}`), { code: "UNAVAILABLE" });
       return await passes.run(async () => {
@@ -461,7 +461,7 @@ export default definePluginEntry({
           row, source, group, claudeChat, bind: (p) => bindChat({ ...p, rebind: true, fork: false }),
           request: (method, params, options) => api.runtime.gateway.request(method, params, options),
           transcriptFile, folderCwd: (folder) => folderCwd(config, folder), agentOf, projectsDir: claudeProjectsDir,
-          running: await runningNow(),
+          running: await runningNow(), callerShares: callerShares === true,
           registryFile: adoptedFile(), pendingFile: pendingShareFile(), log, warn: (m) => api.logger?.warn?.(`${PLUGIN_ID} ${m}`),
         });
         // The moved chat takes the place it was dropped at.
