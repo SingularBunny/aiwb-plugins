@@ -20,6 +20,14 @@ const STRINGS = {
     mentions: "mentions it",
     inChat: "In this chat",
     inMemory: "In memory files",
+    inGit: "In commit messages of the chat's repositories",
+    gitHint: "Ticked commit messages are rewritten without the topic (git filter-repo; a bundle of each repository is kept in ~/.openclaw/forget-backups). Commit hashes change from the first rewritten commit on.",
+    pushed: "pushed",
+    pushTitle: "Force-push the rewritten branches?",
+    pushMessage: "These branches hold the old messages on their servers. A force-push replaces them; anyone with a copy must re-clone or rebase, forks and old clones keep the old text, and GitHub/GitLab may still show it in pull request views. Each push only goes through if the server branch has not moved since.",
+    pushConfirm: "Force-push",
+    pushLater: "Not now",
+    pushFailed: "Not pushed:",
     summaryNote: "Some of these were summarized earlier: that summary is dropped too, and the model loses the rest of what it summarized.",
     apply: (count) => `Forget ${count}`,
     done: (count) => `Forgotten: ${count}.`,
@@ -43,6 +51,14 @@ const STRINGS = {
     mentions: "упоминает",
     inChat: "В этом чате",
     inMemory: "В файлах памяти",
+    inGit: "В сообщениях коммитов репозиториев чата",
+    gitHint: "Отмеченные сообщения коммитов переписываются без темы (git filter-repo; копия каждого репозитория — bundle в ~/.openclaw/forget-backups). Хеши меняются начиная с первого переписанного коммита.",
+    pushed: "отправлен",
+    pushTitle: "Отправить переписанные ветки с force-push?",
+    pushMessage: "На серверах этих веток лежат старые сообщения. Force-push их заменит; у кого есть копия, должны заново клонировать или сделать rebase, форки и старые клоны сохранят прежний текст, а GitHub/GitLab могут ещё показывать его в pull request. Каждый push пройдёт, только если ветка на сервере с тех пор не сдвинулась.",
+    pushConfirm: "Force-push",
+    pushLater: "Не сейчас",
+    pushFailed: "Не отправлено:",
     summaryNote: "Часть этого уже вошла в сводку: сводка тоже будет выброшена, и модель потеряет всё остальное, что в ней было.",
     apply: (count) => `Забыть (${count})`,
     done: (count) => `Забыто: ${count}.`,
@@ -158,9 +174,9 @@ function row(item, detail, ticked, onChange, s) {
 }
 
 /** Step 2: tick what to forget; resolves {entryIds, memory} or null. */
-function pickItems(host, s, topic, candidates, memory) {
+function pickItems(host, s, topic, candidates, memory, commits = []) {
   return openDialog(host, s.pickTitle(topic), (content, finish) => {
-    const ticked = new Set([...candidates, ...memory].filter((item) => item.selected).map((item) => item.id));
+    const ticked = new Set([...candidates, ...memory, ...commits].filter((item) => item.selected).map((item) => item.id));
     const apply = el("button", { type: "submit", class: "btn danger" });
     const note = el("p", { class: "aiwb-chat-tools__note", hidden: true }, s.summaryNote);
     const refresh = () => {
@@ -183,6 +199,14 @@ function pickItems(host, s, topic, candidates, memory) {
         el("ul", { class: "aiwb-chat-tools__list" },
           memory.map((item) => row(item, item.file.split("/").slice(-2).join("/"), ticked, toggle, s))));
     }
+    if (commits.length) {
+      lists.push(el("div", { class: "aiwb-chat-tools__heading" }, s.inGit),
+        el("p", { class: "aiwb-chat-tools__hint" }, s.gitHint),
+        el("ul", { class: "aiwb-chat-tools__list" },
+          commits.map((item) => row(item,
+            `${item.repo.split("/").pop()} · ${item.hash.slice(0, 8)}${item.pushed ? ` · ${s.pushed}` : ""}`,
+            ticked, toggle, s))));
+    }
     content.append(el("form", {
       onsubmit: (event) => {
         event.preventDefault();
@@ -190,6 +214,7 @@ function pickItems(host, s, topic, candidates, memory) {
         finish({
           entryIds: candidates.filter((item) => ticked.has(item.id)).flatMap((item) => item.entryIds),
           memory: memory.filter((item) => ticked.has(item.id)).map(({ file, hash }) => ({ file, hash })),
+          commits: commits.filter((item) => ticked.has(item.id)).map(({ repo, hash }) => ({ repo, hash })),
         });
       },
     },
@@ -203,16 +228,54 @@ function pickItems(host, s, topic, candidates, memory) {
 }
 
 async function forgetTopic(host, s, target) {
+  // Rewriting and force-pushing repositories is an admin action (chat.forget.git.*, OpenClaw fork).
+  const gitAllowed = Boolean(host.connection?.connected && host.connection?.canAdmin);
   const found = await askTopic(host, s, async (topic) => {
     const result = await host.request("chat.forget.find", { ...target, topic });
     const candidates = result?.candidates ?? [];
     const memory = result?.memory ?? [];
-    return candidates.length + memory.length > 0 ? { candidates, memory } : null;
+    const commits = gitAllowed
+      ? (result?.git?.commits ?? []).map((commit) => ({ ...commit, id: `git:${commit.repo}:${commit.hash}`, preview: commit.subject }))
+      : [];
+    return candidates.length + memory.length + commits.length > 0 ? { candidates, memory, commits } : null;
   });
   if (!found) return;
-  const picks = await pickItems(host, s, found.topic, found.candidates, found.memory);
-  if (!picks || picks.entryIds.length + picks.memory.length === 0) return;
-  await host.request("chat.forget.apply", { ...target, topic: found.topic, ...picks });
+  const picks = await pickItems(host, s, found.topic, found.candidates, found.memory, found.commits);
+  if (!picks) return;
+  if (picks.entryIds.length + picks.memory.length > 0) {
+    await host.request("chat.forget.apply", { ...target, topic: found.topic, entryIds: picks.entryIds, memory: picks.memory });
+  }
+  if (!picks.commits.length) return;
+  const rewritten = await host.request("chat.forget.git.apply", { ...target, topic: found.topic, commits: picks.commits });
+  const pushes = (rewritten?.repositories ?? []).flatMap((repository) => repository.push ?? []);
+  if (!pushes.length) return;
+  const list = pushes.map((plan) => `${plan.repo.split("/").pop()}: ${plan.branch} → ${plan.remote}/${plan.remoteBranch}`);
+  const confirmed = await openDialog(host, s.pushTitle, (content, finish) => {
+    content.append(
+      el("p", { class: "aiwb-chat-tools__hint" }, s.pushMessage),
+      el("ul", { class: "aiwb-chat-tools__list" }, list.map((line) => el("li", {}, line))),
+      el("div", { class: "aiwb-chat-tools__actions" },
+        el("button", { type: "button", class: "btn", onclick: () => finish(false) }, s.pushLater),
+        el("button", { type: "button", class: "btn danger", onclick: () => finish(true) }, s.pushConfirm)),
+    );
+  });
+  if (!confirmed) return;
+  const pushed = await host.request("chat.forget.git.push", {
+    ...target,
+    pushes: pushes.map(({ repo, branch, remote, remoteBranch, expected }) => ({ repo, branch, remote, remoteBranch, expected })),
+  });
+  const failed = pushed?.failed ?? [];
+  if (failed.length) {
+    await openDialog(host, s.pushTitle, (content, finish) => {
+      content.append(
+        el("p", { class: "aiwb-chat-tools__hint" }, s.pushFailed),
+        el("ul", { class: "aiwb-chat-tools__list" },
+          failed.map((item) => el("li", {}, `${item.repo.split("/").pop()}: ${item.branch} — ${item.error}`))),
+        el("div", { class: "aiwb-chat-tools__actions" },
+          el("button", { type: "button", class: "btn primary", onclick: () => finish(true) }, "OK")),
+      );
+    });
+  }
 }
 
 function sendCommand(host, target, message) {

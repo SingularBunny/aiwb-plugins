@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-chat-tools` 0.2.0: Forget a topic also lists the commit messages of the repositories the chat's model worked in
+  (admins only); ticked ones are rewritten without the topic, and branches whose published commits changed are
+  force-pushed only after a separate confirmation that lists them. Needs the OpenClaw fork's `chat.forget.git.*`.
 - `aiwb-automation-chat` 0.1.0: in an automation's chat, **Run now / Run again** (or **Run…** with a choice) in the
   header and a **Runs** side panel with the latest runs of the jobs that deliver into the chat, each opening in place
   in the run viewer; Runs opens on its own the first time a page shows the chat. Moved out of the ai-workbench
