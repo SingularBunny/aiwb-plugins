@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-chat-tools` 0.3.0: Forget a topic also lists pull request texts of the chat's GitHub repositories (descriptions,
+  comments, reviews): your own comments are deleted and posted again cleaned; descriptions, reviews and other people's
+  comments are edited (GitHub keeps their edit history), or other people's are reposted on request.
 - `aiwb-chat-tools` 0.2.0: Forget a topic also lists the commit messages of the repositories the chat's model worked in
   (admins only); ticked ones are rewritten without the topic, and branches whose published commits changed are
   force-pushed only after a separate confirmation that lists them. Needs the OpenClaw fork's `chat.forget.git.*`.

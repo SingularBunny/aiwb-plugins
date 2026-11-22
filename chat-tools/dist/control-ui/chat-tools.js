@@ -174,9 +174,10 @@ function row(item, detail, ticked, onChange, s) {
 }
 
 /** Step 2: tick what to forget; resolves {entryIds, memory} or null. */
-function pickItems(host, s, topic, candidates, memory, commits = []) {
+function pickItems(host, s, topic, candidates, memory, commits = [], reviews = []) {
   return openDialog(host, s.pickTitle(topic), (content, finish) => {
-    const ticked = new Set([...candidates, ...memory, ...commits].filter((item) => item.selected).map((item) => item.id));
+    const ticked = new Set([...candidates, ...memory, ...commits, ...reviews].filter((item) => item.selected).map((item) => item.id));
+    const repostBox = el("input", { type: "checkbox" });
     const apply = el("button", { type: "submit", class: "btn danger" });
     const note = el("p", { class: "aiwb-chat-tools__note", hidden: true }, s.summaryNote);
     const refresh = () => {
@@ -207,6 +208,14 @@ function pickItems(host, s, topic, candidates, memory, commits = []) {
             `${item.repo.split("/").pop()} · ${item.hash.slice(0, 8)}${item.pushed ? ` · ${s.pushed}` : ""}`,
             ticked, toggle, s))));
     }
+    if (reviews.length) {
+      lists.push(el("div", { class: "aiwb-chat-tools__heading" }, s.inReviews),
+        el("p", { class: "aiwb-chat-tools__hint" }, s.reviewHint),
+        el("ul", { class: "aiwb-chat-tools__list" },
+          reviews.map((item) => row(item, `${item.repo}#${item.number} · ${s.kinds[item.kind] ?? item.kind} · @${item.author}`,
+            ticked, toggle, s))),
+        el("label", { class: "aiwb-chat-tools__item" }, repostBox, el("span", {}, s.repostOthers)));
+    }
     content.append(el("form", {
       onsubmit: (event) => {
         event.preventDefault();
@@ -215,6 +224,8 @@ function pickItems(host, s, topic, candidates, memory, commits = []) {
           entryIds: candidates.filter((item) => ticked.has(item.id)).flatMap((item) => item.entryIds),
           memory: memory.filter((item) => ticked.has(item.id)).map(({ file, hash }) => ({ file, hash })),
           commits: commits.filter((item) => ticked.has(item.id)).map(({ repo, hash }) => ({ repo, hash })),
+          reviews: reviews.filter((item) => ticked.has(item.id)).map(({ repo, number, kind, ghId }) => ({ repo, number, kind, id: ghId })),
+          repostOthers: repostBox.checked,
         });
       },
     },
@@ -237,13 +248,33 @@ async function forgetTopic(host, s, target) {
     const commits = gitAllowed
       ? (result?.git?.commits ?? []).map((commit) => ({ ...commit, id: `git:${commit.repo}:${commit.hash}`, preview: commit.subject }))
       : [];
-    return candidates.length + memory.length + commits.length > 0 ? { candidates, memory, commits } : null;
+    const reviews = gitAllowed
+      ? (result?.git?.reviews ?? []).map((item) => ({ ...item, id: `pr:${item.repo}:${item.kind}:${item.id}`, ghId: item.id }))
+      : [];
+    return candidates.length + memory.length + commits.length + reviews.length > 0 ? { candidates, memory, commits, reviews } : null;
   });
   if (!found) return;
-  const picks = await pickItems(host, s, found.topic, found.candidates, found.memory, found.commits);
+  const picks = await pickItems(host, s, found.topic, found.candidates, found.memory, found.commits, found.reviews);
   if (!picks) return;
   if (picks.entryIds.length + picks.memory.length > 0) {
     await host.request("chat.forget.apply", { ...target, topic: found.topic, entryIds: picks.entryIds, memory: picks.memory });
+  }
+  if (picks.reviews.length) {
+    const cleaned = await host.request("chat.forget.review.apply", {
+      ...target, topic: found.topic, items: picks.reviews, repostOthers: picks.repostOthers,
+    });
+    const failed = cleaned?.failed ?? [];
+    if (failed.length) {
+      await openDialog(host, s.forgetTitle, (content, finish) => {
+        content.append(
+          el("p", { class: "aiwb-chat-tools__hint" }, s.reviewFailed),
+          el("ul", { class: "aiwb-chat-tools__list" },
+            failed.map((item) => el("li", {}, `${item.repo}#${item.number}: ${item.error}`))),
+          el("div", { class: "aiwb-chat-tools__actions" },
+            el("button", { type: "button", class: "btn primary", onclick: () => finish(true) }, "OK")),
+        );
+      });
+    }
   }
   if (!picks.commits.length) return;
   const rewritten = await host.request("chat.forget.git.apply", { ...target, topic: found.topic, commits: picks.commits });
