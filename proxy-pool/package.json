@@ -1,0 +1,10 @@
+{
+  "name": "aiwb-proxy-pool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A local proxy that sends chosen programs (Junie) through checked free proxies found by proxybroker2",
+  "openclaw": {
+    "extensions": ["./index.js"]
+  }
+}

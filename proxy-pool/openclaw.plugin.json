@@ -1,0 +1,35 @@
+{
+  "id": "aiwb-proxy-pool",
+  "name": "Proxy pool",
+  "description": "A local proxy on 127.0.0.1 that sends chosen programs (JetBrains Junie, through bin/junie-via-pool) through free proxies found by proxybroker2 and checked against a site; a Proxy pool page in the Control UI shows the pool and refreshes it. The Gateway's own traffic does not use it.",
+  "categories": [
+    "productivity"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "uiCapabilities": [
+    "page"
+  ],
+  "controlUi": {
+    "entry": "dist/control-ui/proxy-pool.js",
+    "styles": [
+      "dist/control-ui/proxy-pool.css"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "port": { "type": "number", "description": "Local proxy port on 127.0.0.1; default 18795" },
+      "minPool": { "type": "number", "description": "Refresh when fewer proxies are left; default 5" },
+      "maxPool": { "type": "number", "description": "Keep at most this many checked proxies; default 40" },
+      "refreshMinutes": { "type": "number", "description": "Refresh the pool this often, minutes; default 60" },
+      "grabLimit": { "type": "number", "description": "Candidates to take from proxybroker2 per refresh; default 400" },
+      "checkUrl": { "type": "string", "description": "HTTPS URL a proxy must reach without 451; default https://api.jetbrains.ai/" },
+      "excludeCountries": { "type": "array", "items": { "type": "string" }, "description": "Country codes of proxies to skip; default [\"RU\"]" },
+      "proxybrokerPython": { "type": "string", "description": "Python with proxybroker2 installed; default python3" },
+      "proxybrokerDir": { "type": "string", "description": "Working folder for proxybroker2 (a source checkout); optional" }
+    }
+  }
+}

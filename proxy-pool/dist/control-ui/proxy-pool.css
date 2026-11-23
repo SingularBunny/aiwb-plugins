@@ -1,0 +1,15 @@
+.aiwb-proxy-pool {
+  width: min(100%, 1000px);
+  margin: 0 auto;
+  padding: var(--space-5, 24px);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.aiwb-proxy-pool h1 { margin: 0; font-size: 24px; color: var(--text-strong, var(--text)); }
+.aiwb-proxy-pool__header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.aiwb-proxy-pool__hint, .aiwb-proxy-pool__meta { color: var(--muted); font-size: 13px; }
+.aiwb-proxy-pool__error { color: var(--danger, #d33); }
+.aiwb-proxy-pool__notice { color: var(--ok, #3a3); }
+.aiwb-proxy-pool__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.aiwb-proxy-pool__table th, .aiwb-proxy-pool__table td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.aiwb-proxy-pool__table th { color: var(--muted); font-weight: 500; }

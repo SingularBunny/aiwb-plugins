@@ -10,6 +10,10 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-proxy-pool` 0.1.0: a local proxy over a pool of free proxies (proxybroker2 lists them; each must open an
+  HTTPS tunnel to `checkUrl` without a 451, Russian exits skipped); a failing proxy is skipped and, after two failures
+  in a row, dropped; the pool refreshes on a schedule and when it runs low. `bin/junie-via-pool` points only Junie
+  at it. A Proxy pool page shows the pool and refreshes it.
 - `aiwb-chat-tools` 0.4.0: Forget a topic can rewrite commit and pull request texts with a chat model running on
   this computer (picked in the dialog; the Gateway returns `rewriteModels`) instead of replacing each paragraph with
   `[removed]`; a paragraph the model cannot clean still becomes `[removed]`.
