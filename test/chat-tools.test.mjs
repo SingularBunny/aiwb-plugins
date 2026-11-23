@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import plugin from "../chat-tools/dist/control-ui/chat-tools.js";
+import plugin, { forgetFindView } from "../chat-tools/dist/control-ui/chat-tools.js";
 
 function makeHost(connection = { connected: true, canWrite: true, canAdmin: true }) {
   const actions = new Map();
@@ -66,4 +66,19 @@ test("chat tools: the dialog card fills the host dialog and draws its own backgr
   }
   const js = await readFile(new URL("../chat-tools/dist/control-ui/chat-tools.js", import.meta.url), "utf8");
   assert.match(js, /style: "--openclaw-modal-width: \d+px"/);
+});
+
+test("chat tools: a failed commit search is shown, not silently dropped", () => {
+  // Live 23.11.2026: the commit search failed in the Gateway and the dialog simply had no git section.
+  const failed = { candidates: [], memory: [], git: { repositories: [], commits: [], error: "embeddings failed" } };
+  assert.equal(forgetFindView(failed, true).gitError, "embeddings failed");
+  // Without admin scope the git section is not offered at all, so its error is not shown either.
+  assert.equal(forgetFindView(failed, false), null);
+  const found = forgetFindView({
+    candidates: [{ id: "t1" }],
+    git: { commits: [{ repo: "/r", hash: "abc", subject: "Taxes" }], reviews: [] },
+  }, true);
+  assert.deepEqual(found.commits.map((c) => [c.id, c.preview]), [["git:/r:abc", "Taxes"]]);
+  assert.equal(found.gitError, "");
+  assert.equal(forgetFindView({ candidates: [], memory: [] }, true), null);
 });

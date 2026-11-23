@@ -21,6 +21,7 @@ const STRINGS = {
     inChat: "In this chat",
     inMemory: "In memory files",
     inGit: "In commit messages of the chat's repositories",
+    gitFailed: (error) => `Commit messages were not searched: ${error}`,
     gitHint: "Ticked commit messages are rewritten without the topic (git filter-repo; a bundle of each repository is kept in ~/.openclaw/forget-backups). Commit hashes change from the first rewritten commit on.",
     pushed: "pushed",
     pushTitle: "Force-push the rewritten branches?",
@@ -52,6 +53,7 @@ const STRINGS = {
     inChat: "В этом чате",
     inMemory: "В файлах памяти",
     inGit: "В сообщениях коммитов репозиториев чата",
+    gitFailed: (error) => `Сообщения коммитов не просмотрены: ${error}`,
     gitHint: "Отмеченные сообщения коммитов переписываются без темы (git filter-repo; копия каждого репозитория — bundle в ~/.openclaw/forget-backups). Хеши меняются начиная с первого переписанного коммита.",
     pushed: "отправлен",
     pushTitle: "Отправить переписанные ветки с force-push?",
@@ -176,7 +178,7 @@ function row(item, detail, ticked, onChange, s) {
 }
 
 /** Step 2: tick what to forget; resolves {entryIds, memory} or null. */
-function pickItems(host, s, topic, candidates, memory, commits = [], reviews = []) {
+function pickItems(host, s, topic, candidates, memory, commits = [], reviews = [], gitError = "") {
   return openDialog(host, s.pickTitle(topic), (content, finish) => {
     const ticked = new Set([...candidates, ...memory, ...commits, ...reviews].filter((item) => item.selected).map((item) => item.id));
     const repostBox = el("input", { type: "checkbox" });
@@ -201,6 +203,10 @@ function pickItems(host, s, topic, candidates, memory, commits = [], reviews = [
       lists.push(el("div", { class: "aiwb-chat-tools__heading" }, s.inMemory),
         el("ul", { class: "aiwb-chat-tools__list" },
           memory.map((item) => row(item, item.file.split("/").slice(-2).join("/"), ticked, toggle, s))));
+    }
+    if (gitError) {
+      lists.push(el("div", { class: "aiwb-chat-tools__heading" }, s.inGit),
+        el("p", { class: "aiwb-chat-tools__note" }, s.gitFailed(gitError)));
     }
     if (commits.length) {
       lists.push(el("div", { class: "aiwb-chat-tools__heading" }, s.inGit),
@@ -240,23 +246,34 @@ function pickItems(host, s, topic, candidates, memory, commits = [], reviews = [
   });
 }
 
+/**
+ * What the pick dialog lists from a chat.forget.find answer; null when there is nothing to show.
+ * Commits and pull requests only for an admin connection; a failed commit search is shown as such.
+ */
+export function forgetFindView(result, gitAllowed) {
+  const candidates = result?.candidates ?? [];
+  const memory = result?.memory ?? [];
+  const commits = gitAllowed
+    ? (result?.git?.commits ?? []).map((commit) => ({ ...commit, id: `git:${commit.repo}:${commit.hash}`, preview: commit.subject }))
+    : [];
+  const reviews = gitAllowed
+    ? (result?.git?.reviews ?? []).map((item) => ({ ...item, id: `pr:${item.repo}:${item.kind}:${item.id}`, ghId: item.id }))
+    : [];
+  const gitError = gitAllowed ? result?.git?.error ?? "" : "";
+  return candidates.length + memory.length + commits.length + reviews.length > 0 || gitError
+    ? { candidates, memory, commits, reviews, gitError }
+    : null;
+}
+
 async function forgetTopic(host, s, target) {
   // Rewriting and force-pushing repositories is an admin action (chat.forget.git.*, OpenClaw fork).
   const gitAllowed = Boolean(host.connection?.connected && host.connection?.canAdmin);
   const found = await askTopic(host, s, async (topic) => {
     const result = await host.request("chat.forget.find", { ...target, topic });
-    const candidates = result?.candidates ?? [];
-    const memory = result?.memory ?? [];
-    const commits = gitAllowed
-      ? (result?.git?.commits ?? []).map((commit) => ({ ...commit, id: `git:${commit.repo}:${commit.hash}`, preview: commit.subject }))
-      : [];
-    const reviews = gitAllowed
-      ? (result?.git?.reviews ?? []).map((item) => ({ ...item, id: `pr:${item.repo}:${item.kind}:${item.id}`, ghId: item.id }))
-      : [];
-    return candidates.length + memory.length + commits.length + reviews.length > 0 ? { candidates, memory, commits, reviews } : null;
+    return forgetFindView(result, gitAllowed);
   });
   if (!found) return;
-  const picks = await pickItems(host, s, found.topic, found.candidates, found.memory, found.commits, found.reviews);
+  const picks = await pickItems(host, s, found.topic, found.candidates, found.memory, found.commits, found.reviews, found.gitError);
   if (!picks) return;
   if (picks.entryIds.length + picks.memory.length > 0) {
     const applied = await host.request("chat.forget.apply", { ...target, topic: found.topic, entryIds: picks.entryIds, memory: picks.memory });
