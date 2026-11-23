@@ -13,6 +13,7 @@ export const DEFAULTS = {
   excludeCountries: ["RU"],
   proxybrokerPython: "python3",
   proxybrokerDir: "",
+  requireAuth: false,
 };
 
 /** Plugin config with defaults; invalid values fall back to the default. */
@@ -31,6 +32,7 @@ export function resolveSettings(raw = {}) {
       : DEFAULTS.excludeCountries,
     proxybrokerPython: typeof raw.proxybrokerPython === "string" && raw.proxybrokerPython ? raw.proxybrokerPython : DEFAULTS.proxybrokerPython,
     proxybrokerDir: typeof raw.proxybrokerDir === "string" ? raw.proxybrokerDir : DEFAULTS.proxybrokerDir,
+    requireAuth: raw.requireAuth === true,
   };
 }
 

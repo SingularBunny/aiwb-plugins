@@ -1,7 +1,8 @@
 // Proxy pool core: the proxybroker2 list, the tunnel check, the pool and the local proxy.
 // No OpenClaw imports here, so the tests run it with plain node.
 import { spawn } from "node:child_process";
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { chmod, readFile, rename, writeFile } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
 import tls from "node:tls";
@@ -42,7 +43,7 @@ export function grabProxies({ python, cwd, limit = 400, timeoutMs = 240_000 }) {
   });
 }
 
-/** Opens a CONNECT tunnel to host:port through the proxy; resolves the connected socket. */
+/** Opens a CONNECT tunnel to host:port through the proxy (`auth`: optional `user:password`); resolves the socket. */
 export function openTunnel(proxy, host, port, timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
     const socket = net.connect({ host: proxy.host, port: proxy.port });
@@ -53,7 +54,8 @@ export function openTunnel(proxy, host, port, timeoutMs = 10_000) {
     const closed = () => fail(new Error("closed by the proxy"));
     socket.once("close", closed);
     socket.once("connect", () => {
-      socket.write(`CONNECT ${host}:${port} HTTP/1.1\r\nHost: ${host}:${port}\r\n\r\n`);
+      const auth = proxy.auth ? `Proxy-Authorization: Basic ${Buffer.from(proxy.auth).toString("base64")}\r\n` : "";
+      socket.write(`CONNECT ${host}:${port} HTTP/1.1\r\nHost: ${host}:${port}\r\n${auth}\r\n`);
     });
     let head = Buffer.alloc(0);
     const onData = (chunk) => {
@@ -197,12 +199,49 @@ export function createPool({ file, maxFailures = 2, now = Date.now } = {}) {
   };
 }
 
+/** The user name of the local proxy's password (Basic auth); the password is the secret file's content. */
+export const PROXY_USER = "aiwb";
+
+/** The local proxy's password from `file`, written (mode 600) with a random one when missing. */
+export async function loadOrCreateSecret(file) {
+  try {
+    const secret = (await readFile(file, "utf8")).trim();
+    if (secret) return secret;
+  } catch { /* first use */ }
+  const secret = randomBytes(24).toString("base64url");
+  const tmp = `${file}.tmp`;
+  await writeFile(tmp, `${secret}\n`, { mode: 0o600 });
+  await chmod(tmp, 0o600);
+  await rename(tmp, file);
+  return secret;
+}
+
+/** Whether a `Proxy-Authorization` header carries `PROXY_USER`:`secret` (no secret: anyone may connect). */
+export function proxyAuthorized(header, secret) {
+  if (!secret) return true;
+  const match = /^Basic\s+(\S+)$/i.exec(String(header ?? "").trim());
+  if (!match) return false;
+  const given = Buffer.from(match[1], "base64");
+  const expected = Buffer.from(`${PROXY_USER}:${secret}`);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+const AUTH_REALM = 'Basic realm="aiwb-proxy-pool"';
+
 /**
  * The local proxy: CONNECT (HTTPS) and plain HTTP requests go through a pool proxy; a proxy that
- * cannot open the tunnel is reported and the next one is tried, up to `attempts`.
+ * cannot open the tunnel is reported and the next one is tried, up to `attempts`. With `secret()`
+ * returning a password, a request without it gets 407 (off by default: the plugin's `requireAuth`).
  */
-export function createLocalProxy({ pool, attempts = 3, timeoutMs = 10_000, logger }) {
+export function createLocalProxy({ pool, attempts = 3, timeoutMs = 10_000, logger, secret = () => "" }) {
   const server = http.createServer((req, res) => {
+    if (!proxyAuthorized(req.headers["proxy-authorization"], secret())) {
+      res.writeHead(407, { "Proxy-Authenticate": AUTH_REALM, "Content-Type": "text/plain" });
+      res.end("proxy password required\n");
+      return;
+    }
+    // Our password is for us only; the free proxy never sees it.
+    delete req.headers["proxy-authorization"];
     // Plain HTTP through an upstream HTTP proxy: the absolute URI is passed on as is.
     const proxy = pool.pick();
     if (!proxy || !/^http:\/\//i.test(req.url ?? "")) {
@@ -229,6 +268,10 @@ export function createLocalProxy({ pool, attempts = 3, timeoutMs = 10_000, logge
     const port = Number(portText) || 443;
     const tried = new Set();
     client.on("error", () => {});
+    if (!proxyAuthorized(req.headers["proxy-authorization"], secret())) {
+      client.end(`HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: ${AUTH_REALM}\r\n\r\n`);
+      return;
+    }
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const proxy = pool.pick(tried);
       if (!proxy) break;

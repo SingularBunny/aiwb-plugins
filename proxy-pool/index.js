@@ -8,13 +8,16 @@
 // Free proxies see the host names a program connects to, not the content: HTTPS stays end to end
 // (CONNECT tunnels; the program verifies the certificate). Plain http:// URLs are visible to them.
 //
+// With `requireAuth` the local proxy asks for a password (Basic, user `aiwb`) kept in
+// <state>/workbench/proxy-pool.secret, which bin/junie-via-pool reads; other local programs get 407.
+//
 // Gateway methods: aiwb-proxy-pool.status (operator.read), aiwb-proxy-pool.refresh (operator.admin).
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 
-import { createLocalProxy, createPool } from "./pool.js";
+import { createLocalProxy, createPool, loadOrCreateSecret } from "./pool.js";
 import { refreshPool, resolveSettings } from "./settings.js";
 
 const PLUGIN_ID = "aiwb-proxy-pool";
@@ -34,6 +37,7 @@ export default definePluginEntry({
     let timer = null;
     let attemptAt = 0;
     let failedAt = 0;
+    let secret = "";
 
     const refresh = () => {
       if (!pool) return Promise.reject(new Error("the proxy pool service is not running"));
@@ -55,12 +59,13 @@ export default definePluginEntry({
       reload: { configPrefixes: [`plugins.entries.${PLUGIN_ID}`] },
       async start(ctx) {
         settings = resolveSettings(ctx.config?.plugins?.entries?.[PLUGIN_ID]?.config ?? api.pluginConfig ?? {});
-        ctx.logger.info(`${PLUGIN_ID}: local proxy 127.0.0.1:${settings.port}, proxybroker2 ${settings.proxybrokerPython}`);
+        ctx.logger.info(`${PLUGIN_ID}: local proxy 127.0.0.1:${settings.port}${settings.requireAuth ? " with a password" : ""}, proxybroker2 ${settings.proxybrokerPython}`);
         const dir = path.join(ctx.stateDir, "workbench");
         mkdirSync(dir, { recursive: true });
         pool = createPool({ file: path.join(dir, "proxy-pool.json") });
         await pool.load();
-        server = createLocalProxy({ pool, logger: ctx.logger });
+        secret = settings.requireAuth ? await loadOrCreateSecret(path.join(dir, "proxy-pool.secret")) : "";
+        server = createLocalProxy({ pool, logger: ctx.logger, secret: () => secret });
         server.on("error", (error) => {
           listening = false;
           ctx.logger.warn(`${PLUGIN_ID}: cannot listen on 127.0.0.1:${settings.port}: ${error.message}`);

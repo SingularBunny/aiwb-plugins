@@ -29,7 +29,8 @@
       "checkUrl": { "type": "string", "description": "HTTPS URL a proxy must reach without 451; default https://api.jetbrains.ai/" },
       "excludeCountries": { "type": "array", "items": { "type": "string" }, "description": "Country codes of proxies to skip; default [\"RU\"]" },
       "proxybrokerPython": { "type": "string", "description": "Python with proxybroker2 installed; default python3" },
-      "proxybrokerDir": { "type": "string", "description": "Working folder for proxybroker2 (a source checkout); optional" }
+      "proxybrokerDir": { "type": "string", "description": "Working folder for proxybroker2 (a source checkout); optional" },
+      "requireAuth": { "type": "boolean", "description": "Ask for a password, so that only bin/junie-via-pool can use the local proxy (other programs get 407). The password is made on first use in <state>/workbench/proxy-pool.secret (mode 600) and read from there by the wrapper; default false" }
     }
   }
 }

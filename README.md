@@ -21,7 +21,7 @@ each plugin with `openclaw plugins install --link`.
 | `automation-chat/` | `aiwb-automation-chat` | In an automation's chat: Run now in the header and a Runs side panel with the latest runs (needs the fork's run viewer for plugins) |
 | `chat-tools/` | `aiwb-chat-tools` | Items in a chat's ⋯ menu: Forget a topic (with the fork's `chat.forget` methods; for admins also commit messages of the chat's repositories and its GitHub pull request texts, force-push only on confirmation), New chat, Learn a skill, Reset chat |
 | `gpu/` | `aiwb-gpu` | GPU load and memory: a line in the chat header and a side panel with the models and processes that hold GPU memory (NVIDIA, `nvidia-smi`) |
-| `proxy-pool/` | `aiwb-proxy-pool` | A local proxy (127.0.0.1:18795) over free proxies found by proxybroker2 and checked against a site, for programs a country block or a blocked exit keeps out; JetBrains Junie goes through it via `bin/junie-via-pool`; a Proxy pool page with the pool and a Refresh button |
+| `proxy-pool/` | `aiwb-proxy-pool` | A local proxy (127.0.0.1:18795) over free proxies found by proxybroker2 and checked against a site, for programs a country block or a blocked exit keeps out; JetBrains Junie goes through it via `bin/junie-via-pool`; `requireAuth` (off by default) adds a password so that only the wrapper can use it; a Proxy pool page with the pool and a Refresh button |
 | `mcp/scheduled-tasks/` | MCP `scheduled-tasks` | scheduled tasks with Claude Desktop tools on top of `openclaw automations` |
 
 System programs from the package manager, all optional (a missing one turns its feature off): `python3` for the

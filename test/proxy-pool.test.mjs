@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import http from "node:http";
 import net from "node:net";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { poolRows } from "../proxy-pool/dist/control-ui/proxy-pool.js";
-import { checkProxy, createLocalProxy, createPool, openTunnel, parseGrabOutput } from "../proxy-pool/pool.js";
+import { checkProxy, createLocalProxy, createPool, loadOrCreateSecret, openTunnel, parseGrabOutput, PROXY_USER } from "../proxy-pool/pool.js";
 import { DEFAULTS, refreshPool, resolveSettings } from "../proxy-pool/settings.js";
 
 const listen = (server) => new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
@@ -46,6 +49,9 @@ test("proxy pool: settings fall back to defaults on invalid values", () => {
   assert.equal(s.minPool, 3);
   assert.equal(s.checkUrl, DEFAULTS.checkUrl);
   assert.deepEqual(s.excludeCountries, ["RU", "CN"]);
+  assert.equal(s.requireAuth, false, "the password is off by default");
+  assert.equal(resolveSettings({ requireAuth: "yes" }).requireAuth, false);
+  assert.equal(resolveSettings({ requireAuth: true }).requireAuth, true);
 });
 
 test("proxy pool: a refresh skips excluded countries and keeps the fastest good proxies", async () => {
@@ -114,6 +120,50 @@ test("proxy pool: the local proxy tunnels through the pool and moves past a dead
     await close(local);
     await close(upstream);
     await close(target);
+  }
+});
+
+test("proxy pool: with a password only a client that sends it gets through, and the password stays local", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "proxy-pool-"));
+  const target = net.createServer((socket) => socket.pipe(socket));
+  const targetPort = await listen(target);
+  const upstream = fakeUpstream();
+  let forwarded = null;
+  upstream.on("request", (req) => { forwarded = req.headers; });
+  const upstreamPort = await listen(upstream);
+  const file = path.join(dir, "proxy-pool.secret");
+  const secret = await loadOrCreateSecret(file);
+  assert.equal(await loadOrCreateSecret(file), secret, "made once, then reused");
+  assert.equal((await stat(file)).mode & 0o777, 0o600);
+  assert.match((await readFile(file, "utf8")).trim(), /^[\w-]{32}$/);
+
+  const pool = createPool();
+  pool.replace([{ host: "127.0.0.1", port: upstreamPort, ms: 1 }]);
+  const local = createLocalProxy({ pool, timeoutMs: 2000, secret: () => secret });
+  const localPort = await listen(local);
+  const at = { host: "127.0.0.1", port: localPort };
+  try {
+    await assert.rejects(openTunnel(at, "127.0.0.1", targetPort, 5000), /407/);
+    await assert.rejects(openTunnel({ ...at, auth: `${PROXY_USER}:wrong` }, "127.0.0.1", targetPort, 5000), /407/);
+    const socket = await openTunnel({ ...at, auth: `${PROXY_USER}:${secret}` }, "127.0.0.1", targetPort, 5000);
+    socket.destroy();
+
+    const get = (headers) => new Promise((resolve, reject) => {
+      http.get({ host: "127.0.0.1", port: localPort, path: `http://127.0.0.1:${targetPort}/`, headers }, (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      }).on("error", reject);
+    });
+    assert.equal(await get({}), 407);
+    const basic = `Basic ${Buffer.from(`${PROXY_USER}:${secret}`).toString("base64")}`;
+    await get({ "Proxy-Authorization": basic });
+    assert.ok(forwarded, "the request reached the pool proxy");
+    assert.equal(forwarded["proxy-authorization"], undefined, "the free proxy never sees our password");
+  } finally {
+    local.close();
+    upstream.close();
+    target.close();
+    await rm(dir, { recursive: true, force: true });
   }
 });
 

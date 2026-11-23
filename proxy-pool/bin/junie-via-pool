@@ -2,12 +2,20 @@
 # JetBrains Junie through the aiwb-proxy-pool local proxy, for a country block or a blocked exit.
 # Only this process uses the pool. Port: AIWB_PROXY_POOL_PORT (default 18795, the plugin's `port`);
 # the real Junie: a leading `--junie <path>` (acpx passes no environment), else JUNIE_BIN, else
-# ~/.local/bin/junie. The other arguments are passed on unchanged.
+# ~/.local/bin/junie. With the plugin's `requireAuth`, the password is read from
+# AIWB_PROXY_POOL_SECRET_FILE, else ${OPENCLAW_STATE_DIR:-~/.openclaw}/workbench/proxy-pool.secret.
+# The other arguments are passed on unchanged.
 set -euo pipefail
 port="${AIWB_PROXY_POOL_PORT:-18795}"
 junie="${JUNIE_BIN:-$HOME/.local/bin/junie}"
 if [ "${1:-}" = "--junie" ] && [ $# -ge 2 ]; then junie="$2"; shift 2; fi
-url="http://127.0.0.1:${port}"
+secret_file="${AIWB_PROXY_POOL_SECRET_FILE:-${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/workbench/proxy-pool.secret}"
+auth=""
+if [ -r "$secret_file" ]; then
+  secret="$(tr -d '[:space:]' < "$secret_file")"
+  [ -n "$secret" ] && auth="aiwb:${secret}@"
+fi
+url="http://${auth}127.0.0.1:${port}"
 unset ALL_PROXY all_proxy
 export HTTPS_PROXY="$url" HTTP_PROXY="$url" https_proxy="$url" http_proxy="$url"
 export NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1"
