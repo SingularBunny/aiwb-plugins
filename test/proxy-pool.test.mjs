@@ -4,7 +4,7 @@ import net from "node:net";
 import test from "node:test";
 
 import { poolRows } from "../proxy-pool/dist/control-ui/proxy-pool.js";
-import { createLocalProxy, createPool, openTunnel, parseGrabOutput } from "../proxy-pool/pool.js";
+import { checkProxy, createLocalProxy, createPool, openTunnel, parseGrabOutput } from "../proxy-pool/pool.js";
 import { DEFAULTS, refreshPool, resolveSettings } from "../proxy-pool/settings.js";
 
 const listen = (server) => new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server.address().port)));
@@ -114,6 +114,28 @@ test("proxy pool: the local proxy tunnels through the pool and moves past a dead
     await close(local);
     await close(upstream);
     await close(target);
+  }
+});
+
+test("proxy pool: a proxy that closes without answering fails the check instead of hanging", async () => {
+  const silent = net.createServer((socket) => socket.end());
+  const held = [];
+  const stalls = net.createServer((socket) => held.push(socket)); // accepts and never answers
+  const silentPort = await listen(silent);
+  const stallPort = await listen(stalls);
+  try {
+    const started = Date.now();
+    const closed = await checkProxy({ host: "127.0.0.1", port: silentPort }, { url: "https://example.invalid/", timeoutMs: 300 });
+    const stalled = await checkProxy({ host: "127.0.0.1", port: stallPort }, { url: "https://example.invalid/", timeoutMs: 300 });
+    assert.equal(closed.ok, false);
+    assert.match(closed.error, /closed/);
+    assert.equal(stalled.ok, false);
+    assert.match(stalled.error, /timeout/);
+    assert.ok(Date.now() - started < 3000);
+  } finally {
+    held.forEach((socket) => socket.destroy());
+    stalls.close();
+    silent.close();
   }
 });
 

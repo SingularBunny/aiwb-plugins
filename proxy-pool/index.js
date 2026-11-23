@@ -18,23 +18,30 @@ import { createLocalProxy, createPool } from "./pool.js";
 import { refreshPool, resolveSettings } from "./settings.js";
 
 const PLUGIN_ID = "aiwb-proxy-pool";
+const FAILED_REFRESH_PAUSE_MS = 10 * 60_000;
 
 export default definePluginEntry({
   id: PLUGIN_ID,
   name: "Proxy pool",
   description: "A local proxy that sends chosen programs through checked free proxies (proxybroker2)",
   register(api) {
-    const settings = resolveSettings(api.pluginConfig ?? {});
+    // Read again on every service start: a changed plugin config restarts the service, not register().
+    let settings = resolveSettings(api.pluginConfig ?? {});
     let pool = null;
     let server = null;
     let listening = false;
     let refreshing = null;
     let timer = null;
+    let attemptAt = 0;
+    let failedAt = 0;
 
     const refresh = () => {
       if (!pool) return Promise.reject(new Error("the proxy pool service is not running"));
+      attemptAt = Date.now();
       refreshing ??= refreshPool({ pool, settings, logger: api.logger })
+        .then((result) => { failedAt = result.good ? 0 : Date.now(); return result; })
         .catch((error) => {
+          failedAt = Date.now();
           pool.note(`refresh failed: ${String(error?.message || error).split("\n")[0]}`);
           api.logger?.warn?.(`${PLUGIN_ID}: refresh failed: ${error?.message || error}`);
           return { candidates: 0, good: 0 };
@@ -47,6 +54,8 @@ export default definePluginEntry({
       id: `${PLUGIN_ID}-service`,
       reload: { configPrefixes: [`plugins.entries.${PLUGIN_ID}`] },
       async start(ctx) {
+        settings = resolveSettings(ctx.config?.plugins?.entries?.[PLUGIN_ID]?.config ?? api.pluginConfig ?? {});
+        ctx.logger.info(`${PLUGIN_ID}: local proxy 127.0.0.1:${settings.port}, proxybroker2 ${settings.proxybrokerPython}`);
         const dir = path.join(ctx.stateDir, "workbench");
         mkdirSync(dir, { recursive: true });
         pool = createPool({ file: path.join(dir, "proxy-pool.json") });
@@ -57,13 +66,17 @@ export default definePluginEntry({
           ctx.logger.warn(`${PLUGIN_ID}: cannot listen on 127.0.0.1:${settings.port}: ${error.message}`);
         });
         server.listen(settings.port, "127.0.0.1", () => { listening = true; });
-        const due = () => pool.size() < settings.minPool || Date.now() - pool.state().refreshedAt > settings.refreshMinutes * 60_000;
+        // After a failed refresh wait FAILED_REFRESH_PAUSE_MS before the next one (a missing proxybroker2 would
+        // otherwise spawn a Python every minute).
+        const due = () => !refreshing && Date.now() - failedAt > FAILED_REFRESH_PAUSE_MS && Date.now() - attemptAt > 60_000 &&
+          (pool.size() < settings.minPool || Date.now() - pool.state().refreshedAt > settings.refreshMinutes * 60_000);
         timer = setInterval(() => { if (due()) void refresh(); }, 60_000);
         timer.unref?.();
         if (due()) void refresh();
       },
       async stop() {
         clearInterval(timer);
+        refreshing = null;
         listening = false;
         await new Promise((resolve) => (server ? server.close(() => resolve()) : resolve()));
         server = null;

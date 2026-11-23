@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-proxy-pool` 0.1.1: a proxy that closed or stalled without answering left its check pending for ever and the
+  refresh with it; a check now ends on close and within 2.5 × its timeout. Settings are read on every service start
+  (a changed config kept the old ones), and a failed refresh waits 10 minutes.
 - `aiwb-proxy-pool` 0.1.0: a local proxy over a pool of free proxies (proxybroker2 lists them; each must open an
   HTTPS tunnel to `checkUrl` without a 451, Russian exits skipped); a failing proxy is skipped and, after two failures
   in a row, dropped; the pool refreshes on a schedule and when it runs low. `bin/junie-via-pool` points only Junie

@@ -49,6 +49,9 @@ export function openTunnel(proxy, host, port, timeoutMs = 10_000) {
     const fail = (error) => { socket.destroy(); reject(error); };
     socket.setTimeout(timeoutMs, () => fail(new Error("timeout")));
     socket.once("error", fail);
+    // A proxy that closes without answering would otherwise leave the promise pending for ever.
+    const closed = () => fail(new Error("closed by the proxy"));
+    socket.once("close", closed);
     socket.once("connect", () => {
       socket.write(`CONNECT ${host}:${port} HTTP/1.1\r\nHost: ${host}:${port}\r\n\r\n`);
     });
@@ -61,6 +64,7 @@ export function openTunnel(proxy, host, port, timeoutMs = 10_000) {
         return;
       }
       socket.off("data", onData);
+      socket.off("close", closed);
       const status = Number(/^HTTP\/1\.[01] (\d{3})/.exec(head.toString("latin1"))?.[1]);
       if (status !== 200) return fail(new Error(`proxy answered ${status || "garbage"}`));
       socket.setTimeout(0);
@@ -81,12 +85,20 @@ export async function checkProxy(proxy, { url, blocked = [451], timeoutMs = 10_0
   const target = new URL(url);
   const started = Date.now();
   let socket;
+  let secure;
+  // A hard limit on the whole check: some free proxies accept and then trickle or stall.
+  let deadline;
+  const expired = new Promise((_, reject) => {
+    deadline = setTimeout(() => reject(new Error("timeout")), timeoutMs * 2.5);
+  });
   try {
+    return await Promise.race([expired, (async () => {
     socket = await openTunnel(proxy, target.hostname, Number(target.port) || 443, timeoutMs);
     const status = await new Promise((resolve, reject) => {
-      const secure = tls.connect({ socket, servername: target.hostname });
+      secure = tls.connect({ socket, servername: target.hostname });
       secure.setTimeout(timeoutMs, () => { secure.destroy(); reject(new Error("timeout")); });
       secure.once("error", reject);
+      secure.once("close", () => reject(new Error("closed before an answer")));
       secure.once("secureConnect", () => {
         secure.write(`HEAD ${target.pathname || "/"} HTTP/1.1\r\nHost: ${target.host}\r\nUser-Agent: aiwb-proxy-pool\r\nConnection: close\r\n\r\n`);
       });
@@ -100,9 +112,13 @@ export async function checkProxy(proxy, { url, blocked = [451], timeoutMs = 10_0
     });
     const ms = Date.now() - started;
     return blocked.includes(status) ? { ok: false, status, ms, error: `blocked (${status})` } : { ok: true, status, ms };
+    })()]);
   } catch (error) {
-    socket?.destroy();
     return { ok: false, ms: Date.now() - started, error: String(error?.message || error) };
+  } finally {
+    clearTimeout(deadline);
+    secure?.destroy();
+    socket?.destroy();
   }
 }
 
