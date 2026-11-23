@@ -81,4 +81,8 @@ test("chat tools: a failed commit search is shown, not silently dropped", () => 
   assert.deepEqual(found.commits.map((c) => [c.id, c.preview]), [["git:/r:abc", "Taxes"]]);
   assert.equal(found.gitError, "");
   assert.equal(forgetFindView({ candidates: [], memory: [] }, true), null);
+  // Local models that can rewrite commit and PR texts: offered to an admin connection only.
+  const withModels = { candidates: [{ id: "t1" }], rewriteModels: ["llama-cpp/gemma-4-e4b-it-q4_k_m"] };
+  assert.deepEqual(forgetFindView(withModels, true).rewriteModels, ["llama-cpp/gemma-4-e4b-it-q4_k_m"]);
+  assert.deepEqual(forgetFindView(withModels, false).rewriteModels, []);
 });

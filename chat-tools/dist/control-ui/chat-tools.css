@@ -19,7 +19,8 @@
   color: var(--muted);
 }
 
-.aiwb-chat-tools__input {
+.aiwb-chat-tools__input,
+.aiwb-chat-tools__select {
   width: 100%;
   box-sizing: border-box;
   padding: 6px 8px;

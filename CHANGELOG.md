@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-chat-tools` 0.4.0: Forget a topic can rewrite commit and pull request texts with a chat model running on
+  this computer (picked in the dialog; the Gateway returns `rewriteModels`) instead of replacing each paragraph with
+  `[removed]`; a paragraph the model cannot clean still becomes `[removed]`.
 - `aiwb-chat-tools` 0.3.0: Forget a topic also lists pull request texts of the chat's GitHub repositories (descriptions,
   comments, reviews): your own comments are deleted and posted again cleaned; descriptions, reviews and other people's
   comments are edited (GitHub keeps their edit history), or other people's are reposted on request.

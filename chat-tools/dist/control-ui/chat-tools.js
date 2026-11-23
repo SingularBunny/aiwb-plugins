@@ -22,6 +22,9 @@ const STRINGS = {
     inMemory: "In memory files",
     inGit: "In commit messages of the chat's repositories",
     gitFailed: (error) => `Commit messages were not searched: ${error}`,
+    rewriteWith: "Rewrite commit and pull request texts with",
+    rewritePlaceholder: "no model: replace with [removed]",
+    rewriteHint: "Only models running on this computer are offered: the topic does not leave it. A paragraph the model cannot clean becomes [removed].",
     gitHint: "Ticked commit messages are rewritten without the topic (git filter-repo; a bundle of each repository is kept in ~/.openclaw/forget-backups). Commit hashes change from the first rewritten commit on.",
     pushed: "pushed",
     pushTitle: "Force-push the rewritten branches?",
@@ -54,6 +57,9 @@ const STRINGS = {
     inMemory: "В файлах памяти",
     inGit: "В сообщениях коммитов репозиториев чата",
     gitFailed: (error) => `Сообщения коммитов не просмотрены: ${error}`,
+    rewriteWith: "Переписать тексты коммитов и pull request моделью",
+    rewritePlaceholder: "без модели: заменить на [removed]",
+    rewriteHint: "Предлагаются только модели, работающие на этом компьютере: тема его не покидает. Абзац, который модель не смогла очистить, становится [removed].",
     gitHint: "Отмеченные сообщения коммитов переписываются без темы (git filter-repo; копия каждого репозитория — bundle в ~/.openclaw/forget-backups). Хеши меняются начиная с первого переписанного коммита.",
     pushed: "отправлен",
     pushTitle: "Отправить переписанные ветки с force-push?",
@@ -178,10 +184,14 @@ function row(item, detail, ticked, onChange, s) {
 }
 
 /** Step 2: tick what to forget; resolves {entryIds, memory} or null. */
-function pickItems(host, s, topic, candidates, memory, commits = [], reviews = [], gitError = "") {
+function pickItems(host, s, topic, candidates, memory, commits = [], reviews = [], gitError = "", rewriteModels = []) {
   return openDialog(host, s.pickTitle(topic), (content, finish) => {
     const ticked = new Set([...candidates, ...memory, ...commits, ...reviews].filter((item) => item.selected).map((item) => item.id));
     const repostBox = el("input", { type: "checkbox" });
+    // A local model rewrites the paragraphs that name the topic; the first one is the default.
+    const rewriteSelect = el("select", { class: "aiwb-chat-tools__select", "data-forget-rewrite": "" },
+      ...rewriteModels.map((model) => el("option", { value: model }, model)),
+      el("option", { value: "" }, s.rewritePlaceholder));
     const apply = el("button", { type: "submit", class: "btn danger" });
     const note = el("p", { class: "aiwb-chat-tools__note", hidden: true }, s.summaryNote);
     const refresh = () => {
@@ -224,6 +234,10 @@ function pickItems(host, s, topic, candidates, memory, commits = [], reviews = [
             ticked, toggle, s))),
         el("label", { class: "aiwb-chat-tools__item" }, repostBox, el("span", {}, s.repostOthers)));
     }
+    if (commits.length || reviews.length) {
+      lists.push(el("label", { class: "aiwb-chat-tools__label" }, s.rewriteWith, rewriteSelect),
+        el("p", { class: "aiwb-chat-tools__hint" }, s.rewriteHint));
+    }
     content.append(el("form", {
       onsubmit: (event) => {
         event.preventDefault();
@@ -234,6 +248,7 @@ function pickItems(host, s, topic, candidates, memory, commits = [], reviews = [
           commits: commits.filter((item) => ticked.has(item.id)).map(({ repo, hash }) => ({ repo, hash })),
           reviews: reviews.filter((item) => ticked.has(item.id)).map(({ repo, number, kind, ghId }) => ({ repo, number, kind, id: ghId })),
           repostOthers: repostBox.checked,
+          rewriteModel: rewriteSelect.value || undefined,
         });
       },
     },
@@ -260,8 +275,9 @@ export function forgetFindView(result, gitAllowed) {
     ? (result?.git?.reviews ?? []).map((item) => ({ ...item, id: `pr:${item.repo}:${item.kind}:${item.id}`, ghId: item.id }))
     : [];
   const gitError = gitAllowed ? result?.git?.error ?? "" : "";
+  const rewriteModels = gitAllowed ? result?.rewriteModels ?? [] : [];
   return candidates.length + memory.length + commits.length + reviews.length > 0 || gitError
-    ? { candidates, memory, commits, reviews, gitError }
+    ? { candidates, memory, commits, reviews, gitError, rewriteModels }
     : null;
 }
 
@@ -273,7 +289,7 @@ async function forgetTopic(host, s, target) {
     return forgetFindView(result, gitAllowed);
   });
   if (!found) return;
-  const picks = await pickItems(host, s, found.topic, found.candidates, found.memory, found.commits, found.reviews, found.gitError);
+  const picks = await pickItems(host, s, found.topic, found.candidates, found.memory, found.commits, found.reviews, found.gitError, found.rewriteModels);
   if (!picks) return;
   if (picks.entryIds.length + picks.memory.length > 0) {
     const applied = await host.request("chat.forget.apply", { ...target, topic: found.topic, entryIds: picks.entryIds, memory: picks.memory });
@@ -291,6 +307,7 @@ async function forgetTopic(host, s, target) {
   if (picks.reviews.length) {
     const cleaned = await host.request("chat.forget.review.apply", {
       ...target, topic: found.topic, items: picks.reviews, repostOthers: picks.repostOthers,
+      ...(picks.rewriteModel ? { rewriteModel: picks.rewriteModel } : {}),
     });
     const failed = cleaned?.failed ?? [];
     if (failed.length) {
@@ -306,7 +323,10 @@ async function forgetTopic(host, s, target) {
     }
   }
   if (!picks.commits.length) return;
-  const rewritten = await host.request("chat.forget.git.apply", { ...target, topic: found.topic, commits: picks.commits });
+  const rewritten = await host.request("chat.forget.git.apply", {
+    ...target, topic: found.topic, commits: picks.commits,
+    ...(picks.rewriteModel ? { rewriteModel: picks.rewriteModel } : {}),
+  });
   const pushes = (rewritten?.repositories ?? []).flatMap((repository) => repository.push ?? []);
   if (!pushes.length) return;
   const list = pushes.map((plan) => `${plan.repo.split("/").pop()}: ${plan.branch} → ${plan.remote}/${plan.remoteBranch}`);
