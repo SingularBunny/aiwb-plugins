@@ -38,13 +38,18 @@ export default definePluginEntry({
     let attemptAt = 0;
     let failedAt = 0;
     let secret = "";
+    let abort = null;
 
     const refresh = () => {
       if (!pool) return Promise.reject(new Error("the proxy pool service is not running"));
       attemptAt = Date.now();
-      refreshing ??= refreshPool({ pool, settings, logger: api.logger })
+      if (refreshing) return refreshing;
+      abort = new AbortController();
+      const { signal } = abort;
+      refreshing = refreshPool({ pool, settings, logger: api.logger, signal })
         .then((result) => { failedAt = result.good ? 0 : Date.now(); return result; })
         .catch((error) => {
+          if (signal.aborted) return { candidates: 0, good: 0 };
           failedAt = Date.now();
           pool.note(`refresh failed: ${String(error?.message || error).split("\n")[0]}`);
           api.logger?.warn?.(`${PLUGIN_ID}: refresh failed: ${error?.message || error}`);
@@ -81,6 +86,10 @@ export default definePluginEntry({
       },
       async stop() {
         clearInterval(timer);
+        // End the refresh (proxybroker2 and the checks) and every open tunnel now: a plugin reload
+        // waits for the service's work only briefly.
+        abort?.abort();
+        await refreshing?.catch(() => {});
         refreshing = null;
         listening = false;
         await new Promise((resolve) => (server ? server.close(() => resolve()) : resolve()));

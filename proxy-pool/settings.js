@@ -37,13 +37,15 @@ export function resolveSettings(raw = {}) {
 }
 
 /** One refresh: grab, drop excluded countries, check in parallel, keep the good ones (fastest first). */
-export async function refreshPool({ pool, settings, grab = grabProxies, check = checkProxy, logger }) {
+export async function refreshPool({ pool, settings, grab = grabProxies, check = checkProxy, logger, signal }) {
   const candidates = (await grab({
     python: settings.proxybrokerPython,
     cwd: settings.proxybrokerDir || undefined,
     limit: settings.grabLimit,
+    signal,
   })).filter((proxy) => !settings.excludeCountries.includes(proxy.country));
-  const results = await mapLimit(candidates, 40, async (proxy) => ({ ...proxy, ...(await check(proxy, { url: settings.checkUrl })) }));
+  const results = await mapLimit(candidates, 40, async (proxy) => ({ ...proxy, ...(await check(proxy, { url: settings.checkUrl, signal })) }), signal);
+  if (signal?.aborted) throw new Error("stopped");
   const good = results.filter((result) => result.ok).sort((a, b) => a.ms - b.ms).slice(0, settings.maxPool)
     .map(({ host, port, country, ms, status }) => ({ host, port, country, ms, status }));
   pool.replace(good, { error: good.length ? "" : `none of ${candidates.length} candidates passed the check` });

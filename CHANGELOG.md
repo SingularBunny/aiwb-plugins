@@ -10,6 +10,9 @@ All notable changes to the ai-workbench plugins. The format follows
 
 ### Added
 
+- `aiwb-proxy-pool` 0.2.1: stopping the service (a plugin reload) ends open tunnels and a running refresh at once
+  (proxybroker2 is killed, checks stop); before, a reload timed out waiting for them and the Gateway refused further
+  plugin reloads until restarted.
 - `aiwb-proxy-pool` 0.2.0: an optional password on the local proxy (`requireAuth`, off by default): other local
   programs get 407, `bin/junie-via-pool` reads the password from `<state>/workbench/proxy-pool.secret` (made on first
   use, mode 600), and the password is never passed on to the free proxies. The Proxy pool page shows whether it is on.

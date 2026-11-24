@@ -23,19 +23,24 @@ export function parseGrabOutput(text) {
 }
 
 /** Raw candidates from proxybroker2 (`python -m proxybroker grab`); the check is ours. */
-export function grabProxies({ python, cwd, limit = 400, timeoutMs = 240_000 }) {
+export function grabProxies({ python, cwd, limit = 400, timeoutMs = 240_000, signal }) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new Error("stopped"));
     const env = { ...process.env };
     for (const key of Object.keys(env)) if (/_proxy$/i.test(key)) delete env[key];
     const child = spawn(python, ["-m", "proxybroker", "grab", "--limit", String(limit)], { cwd, env });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
+    const stop = () => child.kill("SIGTERM");
+    signal?.addEventListener("abort", stop, { once: true });
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr = (stderr + chunk).slice(-2000); });
-    child.on("error", (error) => { clearTimeout(timer); reject(error); });
+    child.on("error", (error) => { clearTimeout(timer); signal?.removeEventListener("abort", stop); reject(error); });
     child.on("close", (code) => {
       clearTimeout(timer);
+      signal?.removeEventListener("abort", stop);
+      if (signal?.aborted) return reject(new Error("stopped"));
       const list = parseGrabOutput(stdout);
       if (list.length || code === 0) resolve(list);
       else reject(new Error(`proxybroker grab exited ${code}: ${stderr.trim().split("\n").pop() ?? ""}`));
@@ -83,15 +88,19 @@ export function openTunnel(proxy, host, port, timeoutMs = 10_000) {
  * Checks one proxy against an HTTPS URL: a CONNECT tunnel, TLS with certificate verification, and a
  * HEAD request. Good when the answer's status is not one of `blocked` (451 is a block by country).
  */
-export async function checkProxy(proxy, { url, blocked = [451], timeoutMs = 10_000 }) {
+export async function checkProxy(proxy, { url, blocked = [451], timeoutMs = 10_000, signal }) {
   const target = new URL(url);
   const started = Date.now();
   let socket;
   let secure;
   // A hard limit on the whole check: some free proxies accept and then trickle or stall.
   let deadline;
+  let onAbort;
   const expired = new Promise((_, reject) => {
     deadline = setTimeout(() => reject(new Error("timeout")), timeoutMs * 2.5);
+    onAbort = () => reject(new Error("stopped"));
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
   });
   try {
     return await Promise.race([expired, (async () => {
@@ -119,17 +128,18 @@ export async function checkProxy(proxy, { url, blocked = [451], timeoutMs = 10_0
     return { ok: false, ms: Date.now() - started, error: String(error?.message || error) };
   } finally {
     clearTimeout(deadline);
+    signal?.removeEventListener("abort", onAbort);
     secure?.destroy();
     socket?.destroy();
   }
 }
 
 /** Runs `work` over `items` with at most `limit` at once; results in input order. */
-export async function mapLimit(items, limit, work) {
+export async function mapLimit(items, limit, work, signal) {
   const results = new Array(items.length);
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
+    while (next < items.length && !signal?.aborted) {
       const index = next++;
       results[index] = await work(items[index], index);
     }
@@ -263,6 +273,20 @@ export function createLocalProxy({ pool, attempts = 3, timeoutMs = 10_000, logge
     });
     req.pipe(upstream);
   });
+  // Open client sockets and their tunnels, so that close() ends them instead of waiting: the Gateway
+  // stops the service on a plugin reload and gives it only a short time.
+  const open = new Set();
+  server.on("connection", (socket) => {
+    open.add(socket);
+    socket.once("close", () => open.delete(socket));
+  });
+  const close = server.close.bind(server);
+  server.close = (callback) => {
+    close(callback);
+    for (const socket of open) socket.destroy();
+    server.closeAllConnections?.();
+    return server;
+  };
   server.on("connect", async (req, client, head) => {
     const [host, portText] = String(req.url ?? "").split(/:(?=\d+$)/);
     const port = Number(portText) || 443;
@@ -279,6 +303,9 @@ export function createLocalProxy({ pool, attempts = 3, timeoutMs = 10_000, logge
       try {
         const upstream = await openTunnel(proxy, host, port, timeoutMs);
         pool.report(proxy, true);
+        if (client.destroyed) { upstream.destroy(); return; }
+        client.once("close", () => upstream.destroy());
+        upstream.once("close", () => client.destroy());
         client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
         if (head?.length) upstream.write(head);
         upstream.on("error", () => client.destroy());

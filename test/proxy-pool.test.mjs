@@ -189,6 +189,56 @@ test("proxy pool: a proxy that closes without answering fails the check instead 
   }
 });
 
+test("proxy pool: stopping ends open tunnels and a running refresh at once", async () => {
+  const target = net.createServer((socket) => socket.pipe(socket));
+  const targetPort = await listen(target);
+  const upstream = fakeUpstream();
+  const upstreamPort = await listen(upstream);
+  const pool = createPool();
+  pool.replace([{ host: "127.0.0.1", port: upstreamPort, ms: 1 }]);
+  const local = createLocalProxy({ pool, timeoutMs: 2000 });
+  const localPort = await listen(local);
+  const socket = await openTunnel({ host: "127.0.0.1", port: localPort }, "127.0.0.1", targetPort, 5000);
+  const ended = new Promise((resolve) => socket.once("close", resolve));
+  const started = Date.now();
+  await close(local); // an open tunnel would otherwise keep close() waiting
+  await ended;
+  assert.ok(Date.now() - started < 1000);
+  upstream.close();
+  target.close();
+
+  // A refresh stopped midway: no proxy is checked after the stop, and the pool is left as it was.
+  const controller = new AbortController();
+  const seen = [];
+  const check = async (proxy, options) => {
+    seen.push(options.signal);
+    controller.abort();
+    return { ok: true, status: 404, ms: 1 };
+  };
+  const grab = async (options) => {
+    assert.equal(options.signal, controller.signal);
+    return Array.from({ length: 100 }, (_, index) => ({ host: `10.0.0.${index}`, port: 1, country: "US" }));
+  };
+  const before = pool.list();
+  await assert.rejects(refreshPool({ pool, settings: DEFAULTS, grab, check, signal: controller.signal }), /stopped/);
+  assert.ok(seen.length <= 40, "no new checks start after the stop");
+  assert.equal(seen[0], controller.signal);
+  assert.deepEqual(pool.list(), before);
+
+  // A check in progress ends on the stop.
+  const held = [];
+  const stalls = net.createServer((client) => held.push(client));
+  const stallPort = await listen(stalls);
+  const stopper = new AbortController();
+  setTimeout(() => stopper.abort(), 50);
+  const at = Date.now();
+  const result = await checkProxy({ host: "127.0.0.1", port: stallPort }, { url: "https://example.invalid/", timeoutMs: 5000, signal: stopper.signal });
+  assert.match(result.error, /stopped/);
+  assert.ok(Date.now() - at < 1000);
+  held.forEach((client) => client.destroy());
+  stalls.close();
+});
+
 test("proxy pool: the page lists proxies with country, answer, time and failures", () => {
   assert.deepEqual(poolRows({ proxies: [{ host: "1.2.3.4", port: 80, country: "", status: 404, ms: 1234, failures: 1 }] }), [
     ["1.2.3.4:80", "—", "404", "1.2 s", "1"],
